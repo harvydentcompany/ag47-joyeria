@@ -1,0 +1,1180 @@
+'use client';
+
+import { useState } from 'react';
+
+export default function TiendaPublica() {
+  const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
+
+  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista'
+  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista'>('inicio');
+  
+  // ESTADO DE SESIÓN MAYORISTA
+  const [esMayorista, setEsMayorista] = useState(false);
+  const [clienteMayoristaActivo, setClienteMayoristaActivo] = useState<any>(null);
+
+  const [carrito, setCarrito] = useState<any[]>([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
+  const [productoSeleccionadoModal, setProductoSeleccionadoModal] = useState<any>(null);
+  const [fotoActivaIndex, setFotoActivaIndex] = useState(0);
+  const [varianteElegida, setVarianteElegida] = useState<any>(null);
+  const [cantidadModal, setCantidadModal] = useState<number>(1);
+
+  // DATOS DEL FORMULARIO LOGIN MAYORISTA
+  const [loginUsuario, setLoginUsuario] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginRecordar, setLoginRecordar] = useState(false);
+  const [cargandoLogin, setCargandoLogin] = useState(false);
+
+  // BASE DE DATOS DE MAYORISTAS
+  const [listaMayoristas, setListaMayoristas] = useState([
+    { 
+      id: 1, 
+      nombre: 'María López', 
+      telefono: '5555-1122', 
+      correo: 'maria@eldiamante.com', 
+      tipoCliente: 'Tienda Física', 
+      estado: 'Autorizado',
+      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39 }
+    },
+    { 
+      id: 2, 
+      nombre: 'Carlos Pérez', 
+      telefono: '5555-3344', 
+      correo: 'carlos@perez.com', 
+      tipoCliente: 'Revendedor / Venta Ruteada', 
+      estado: 'Pendiente',
+      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35 }
+    }
+  ]);
+
+  // DATOS DEL FORMULARIO REGISTRO MAYORISTA
+  const [datosRegistroMayorista, setDatosRegistroMayorista] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    tipoCliente: 'Particular',
+    requiereEnvio: false,
+    direccion: ''
+  });
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
+
+  // DATOS DEL CLIENTE PARA ENVÍO Y PAGO
+  const [datosEnvio, setDatosEnvio] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    direccion: '',
+    departamento: 'Guatemala',
+    metodoEntrega: 'envio',
+    metodoPago: 'contraentrega',
+    notaPedido: ''
+  });
+
+  const [medioConfirmacion, setMedioConfirmacion] = useState<'whatsapp' | 'correo'>('whatsapp');
+  const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
+
+  // LISTADO DE CATEGORÍAS
+  const [todasLasCategorias] = useState([
+    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
+  ]);
+
+  // CATÁLOGO DE PRODUCTOS CON PESO
+  const [productos] = useState([
+    {
+      id: 101,
+      sku: '24665-38850',
+      nombre: 'Anillo de Zircones Solitario Garra',
+      categoria: 'Anillos',
+      precioMinorista: 220,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Anillo de Zircones pavé de alta refracción. Sortija estilo clásico.',
+      fotos: [
+        'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800',
+        'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800'
+      ],
+      variantes: [
+        { id: 'v1', medida: '5', peso: 2.3, stock: 5 },
+        { id: 'v2', medida: '6', peso: 2.5, stock: 8 },
+        { id: 'v3', medida: '7', peso: 2.7, stock: 4 }
+      ]
+    },
+    {
+      id: 102,
+      sku: 'CAD-005',
+      nombre: 'Gargantilla Escalera Plata 925',
+      categoria: 'Gargantillas',
+      precioMinorista: 600,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Gargantilla de tejido italiano fino con acabado de espejo en plata rodinada.',
+      fotos: [
+        'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'
+      ],
+      variantes: [
+        { id: 'v4', medida: '40 cm', peso: 10.2, stock: 2 },
+        { id: 'v5', medida: '45 cm', peso: 11.5, stock: 4 }
+      ]
+    },
+    {
+      id: 103,
+      sku: 'PUL-088',
+      nombre: 'Pulsera Tejido Italiano Dije Corazón',
+      categoria: 'Pulseras',
+      precioMinorista: 450,
+      esNuevo: false,
+      material: 'Plata 925',
+      descripcion: 'Pulsera elegante en plata 925 con broche marinero reforzado y dije colgante.',
+      fotos: [
+        'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'
+      ],
+      variantes: [
+        { id: 'v6', medida: '18 cm', peso: 7.8, stock: 6 },
+        { id: 'v7', medida: '20 cm', peso: 8.4, stock: 3 }
+      ]
+    },
+    {
+      id: 104,
+      sku: 'ARE-021',
+      nombre: 'Aretes Arrancadas Zirconias Pavé',
+      categoria: 'Aretes',
+      precioMinorista: 310,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Arrancadas clásicas pavé con incrustaciones de micro zirconias suizas.',
+      fotos: [
+        'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800'
+      ],
+      variantes: [
+        { id: 'v8', medida: 'Par Estándar', peso: 4.1, stock: 10 }
+      ]
+    }
+  ]);
+
+  // VERIFICA SI UN PRODUCTO O VARIANTE YA ESTÁ EN EL CARRITO
+  const estaEnCarrito = (productoId: number, varianteId?: string) => {
+    if (varianteId) {
+      return carrito.some(item => item.id === `${productoId}-${varianteId}`);
+    }
+    return carrito.some(item => item.productoId === productoId);
+  };
+
+  // CÁLCULO DE PRECIO AUTOMÁTICO SEGÚN TIPO DE USUARIO
+  const obtenerPrecioCalculado = (producto: any, variante: any) => {
+    if (esMayorista && clienteMayoristaActivo) {
+      const tarifaGramo = clienteMayoristaActivo.tarifasPorGramo[producto.categoria] || 36;
+      const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
+      return Number((pesoUnitario * tarifaGramo).toFixed(2));
+    }
+    return producto.precioMinorista;
+  };
+
+  const irACategoriaEspecifica = (nombreCat: string) => {
+    setCategoriaFiltro(nombreCat);
+    setVistaActual('catalogo');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const abrirModalDetalle = (prod: any) => {
+    setProductoSeleccionadoModal(prod);
+    setFotoActivaIndex(0);
+    setVarianteElegida(prod.variantes[0] || null);
+    setCantidadModal(1);
+  };
+
+  // ABRIR EL MODAL DE DETALLE DESDE EL CARRITO
+  const verProductoDesdeCarrito = (productoId: number) => {
+    const productoEncontrado = productos.find(p => p.id === productoId);
+    if (productoEncontrado) {
+      abrirModalDetalle(productoEncontrado);
+    }
+  };
+
+  const agregarAlCarritoSilencioso = () => {
+    if (!productoSeleccionadoModal || !varianteElegida) return;
+
+    const precioCalculado = obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida);
+
+    const itemEnCarrito = {
+      id: `${productoSeleccionadoModal.id}-${varianteElegida.id}`,
+      productoId: productoSeleccionadoModal.id,
+      sku: productoSeleccionadoModal.sku,
+      nombre: productoSeleccionadoModal.nombre,
+      medida: varianteElegida.medida,
+      pesoUnitario: varianteElegida.peso,
+      precio: precioCalculado,
+      foto: productoSeleccionadoModal.fotos[0],
+      cantidad: cantidadModal
+    };
+
+    const existe = carrito.find(item => item.id === itemEnCarrito.id);
+    if (existe) {
+      setCarrito(carrito.map(item => item.id === itemEnCarrito.id ? { ...item, cantidad: item.cantidad + cantidadModal } : item));
+    } else {
+      setCarrito([...carrito, itemEnCarrito]);
+    }
+
+    setProductoSeleccionadoModal(null);
+  };
+
+  const modificarCantidad = (id: string, cambio: number) => {
+    setCarrito(carrito.map(item => {
+      if (item.id === id) {
+        const nuevaCant = item.cantidad + cambio;
+        return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : item;
+      }
+      return item;
+    }));
+  };
+
+  const eliminarDelCarrito = (id: string) => {
+    setCarrito(carrito.filter(item => item.id !== id));
+  };
+
+  const vaciarCarrito = () => {
+    if (confirm('¿Deseas vaciar todos los productos del carrito?')) {
+      setCarrito([]);
+    }
+  };
+
+  const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
+  const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+
+  const procesarHacerPedido = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!datosEnvio.nombreCompleto || !datosEnvio.telefono) {
+      alert('Por favor ingresa al menos tu nombre y número de teléfono.');
+      return;
+    }
+
+    if (datosEnvio.metodoEntrega === 'envio' && !datosEnvio.direccion) {
+      alert('Por favor ingresa la dirección de entrega para tu pedido.');
+      return;
+    }
+
+    const numOrden = 'AG47-' + Math.floor(100000 + Math.random() * 900000);
+    setNumeroOrdenGenerado(numOrden);
+    setVistaActual('confirmado');
+  };
+
+  const enviarConfirmacionCliente = () => {
+    if (medioConfirmacion === 'whatsapp') {
+      let mensaje = `Hola AG47, mi nombre es *${datosEnvio.nombreCompleto}*.\n`;
+      mensaje += `Acabo de realizar el pedido *#${numeroOrdenGenerado}* en la página web.\n\n`;
+      mensaje += `Quedo a la espera de su confirmación de disponibilidad para proceder. ¡Muchas gracias!`;
+
+      const url = `https://wa.me/50255550101?text=${encodeURIComponent(mensaje)}`;
+      window.open(url, '_blank');
+    } else {
+      alert(`Se ha enviado la solicitud de confirmación de la orden #${numeroOrdenGenerado} al correo ${datosEnvio.correo || 'registrado'}.`);
+    }
+  };
+
+  // LOGIN MAYORISTA
+  const ejecutarLoginMayorista = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginUsuario) return alert('Por favor ingresa tu usuario.');
+
+    const usuarioEncontrado = listaMayoristas.find(m => m.correo.toLowerCase() === loginUsuario.toLowerCase() || m.nombre.toLowerCase() === loginUsuario.toLowerCase());
+
+    if (usuarioEncontrado && usuarioEncontrado.estado === 'Pendiente') {
+      return alert('Tu cuenta aún se encuentra PENDIENTE DE REVISIÓN.');
+    }
+
+    if (usuarioEncontrado && usuarioEncontrado.estado === 'Suspendido') {
+      return alert('Tu cuenta ha sido SUSPENDIDA. Contacta a soporte.');
+    }
+
+    setCargandoLogin(true);
+    setTimeout(() => {
+      setCargandoLogin(false);
+      setEsMayorista(true);
+      setClienteMayoristaActivo(usuarioEncontrado || listaMayoristas[0]);
+      setVistaActual('inicio');
+      alert(`¡Sesión iniciada correctamente! Se ha activado tu tarifario por gramo.`);
+    }, 1000);
+  };
+
+  const cerrarSesionMayorista = () => {
+    setEsMayorista(false);
+    setClienteMayoristaActivo(null);
+    setVistaActual('inicio');
+  };
+
+  const enviarRegistroMayorista = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!datosRegistroMayorista.nombreCompleto || !datosRegistroMayorista.telefono) {
+      alert('Por favor completa tu nombre y número de teléfono.');
+      return;
+    }
+
+    const nuevo = {
+      id: Date.now(),
+      nombre: datosRegistroMayorista.nombreCompleto,
+      telefono: datosRegistroMayorista.telefono,
+      correo: datosRegistroMayorista.correo || 'No proporcionado',
+      tipoCliente: datosRegistroMayorista.tipoCliente || 'Particular',
+      estado: 'Pendiente',
+      tarifasPorGramo: { Anillos: 36, Aretes: 36, Gargantillas: 36, Pulseras: 36, Cadenas: 36, 'Dijes & Medallas': 36 }
+    };
+
+    setListaMayoristas([...listaMayoristas, nuevo]);
+    setSolicitudEnviada(true);
+  };
+
+  const productosFiltrados = productos.filter(p => {
+    const coincideCategoria = categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro;
+    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.sku.toLowerCase().includes(busqueda.toLowerCase());
+    return coincideCategoria && coincideBusqueda;
+  });
+
+  const productosSimilares = productoSeleccionadoModal 
+    ? productos.filter(p => p.id !== productoSeleccionadoModal.id)
+    : [];
+
+  return (
+    <div className="min-h-screen bg-[#faf7f2] text-zinc-900 font-sans selection:bg-amber-100 flex flex-col justify-between">
+      
+      <div>
+        {/* BARRA SUPERIOR DE AVISO CON INDICADOR DE SESIÓN */}
+        <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
+          <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
+          <div className="flex gap-2 items-center">
+            {esMayorista ? (
+              <div className="flex items-center space-x-2 bg-amber-800 text-white px-3 py-0.5 rounded text-[10px] font-mono">
+                <span>👑 Mayorista: <strong>{clienteMayoristaActivo?.nombre}</strong></span>
+                <button onClick={cerrarSesionMayorista} className="underline hover:text-amber-200 ml-1">Salir</button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} 
+                className="hidden sm:inline-block font-mono text-[10px] bg-amber-800 hover:bg-amber-900 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition"
+              >
+                🔐 Iniciar Sesión Mayoristas
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ENCABEZADO */}
+        <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
+              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300">
+                AG
+              </div>
+              <div>
+                <span className="font-serif font-bold text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>
+                <span className="text-[10px] uppercase font-mono tracking-widest text-amber-800 font-semibold">
+                  {esMayorista ? 'Portal Mayorista B2B' : 'Distribuidor de Platería'}
+                </span>
+              </div>
+            </div>
+
+            <nav className="hidden md:flex items-center space-x-8 text-xs font-bold uppercase tracking-wider text-zinc-700">
+              <button onClick={() => setVistaActual('inicio')} className={`transition ${vistaActual === 'inicio' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Inicio</button>
+              <button onClick={() => setVistaActual('categorias')} className={`transition ${vistaActual === 'categorias' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Categorías</button>
+              <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className={`transition ${vistaActual === 'catalogo' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Catálogo</button>
+              {!esMayorista && (
+                <button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className={`transition ${vistaActual === 'login' || vistaActual === 'registro_mayorista' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-800'}`}>Iniciar Sesión</button>
+              )}
+            </nav>
+
+            <div className="flex items-center space-x-4">
+              <div className="relative hidden sm:block">
+                <input 
+                  type="text" 
+                  placeholder="Buscar producto..." 
+                  value={busqueda} 
+                  onChange={(e) => { setBusqueda(e.target.value); setVistaActual('catalogo'); }}
+                  className="w-48 lg:w-64 pl-3 pr-8 py-1.5 bg-[#f5efe4] border border-[#e5d9c5] rounded-md text-xs focus:outline-none focus:border-amber-600 transition"
+                />
+                <span className="absolute right-2.5 top-1.5 text-amber-800/60 text-xs">🔍</span>
+              </div>
+
+              <button 
+                onClick={() => setVistaActual('carrito')} 
+                className="relative p-2 bg-zinc-900 text-amber-400 hover:bg-zinc-800 rounded-md transition font-bold text-xs flex items-center space-x-2 border border-amber-500/40"
+              >
+                <svg className="w-4 h-4 fill-current text-amber-400" viewBox="0 0 24 24">
+                  <path d="M16 7a4 4 0 00-8 0H4v14a2 2 0 002 2h12a2 2 0 002-2V7h-4zm-6-3a2 2 0 014 0v3h-4V4zm8 17H6V9h2v2a1 1 0 002 0V9h4v2a1 1 0 002 0V9h2v12z"/>
+                </svg>
+                <span className="hidden sm:inline text-white">Q{totalMonto.toFixed(2)}</span>
+                <span className="bg-amber-600 text-white font-bold rounded-full px-1.5 py-0.2 text-[10px]">{totalPiezas}</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* VISTA: INICIO */}
+        {vistaActual === 'inicio' && (
+          <>
+            <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+                <div className="max-w-xl space-y-6 text-center md:text-left">
+                  <span className="inline-block px-3.5 py-1 bg-[#eadcc7] text-amber-900 text-xs font-semibold rounded-full border border-amber-300 uppercase tracking-widest">
+                    Colección Plata Ley 925
+                  </span>
+                  <h1 className="text-4xl sm:text-5xl font-serif font-light text-zinc-900 tracking-wide leading-tight">
+                    Distribuidor de <span className="font-semibold text-amber-700 italic">Platería Fina</span>
+                  </h1>
+                  <p className="text-zinc-600 text-sm font-light leading-relaxed">
+                    {esMayorista 
+                      ? `Bienvenido/a ${clienteMayoristaActivo?.nombre}. Tu tarifario preferencial por gramo se encuentra activo en todas las joyas.`
+                      : 'Explora nuestras colecciones exclusivas. Consulta productos al detalle por categorías o solicita tu acceso a precios mayoristas.'
+                    }
+                  </p>
+                  <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                    <button onClick={() => setVistaActual('categorias')} className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-8 py-3 rounded-md text-xs uppercase tracking-wider transition shadow-md">
+                      Ver Categorías
+                    </button>
+                    <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className="bg-white hover:bg-[#f2ece1] text-zinc-900 font-bold px-8 py-3 rounded-md text-xs uppercase tracking-wider border border-amber-300 transition">
+                      Ver Catálogo Completo
+                    </button>
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl">
+                    <img src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800" alt="Joyería AG47" className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" />
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-end mb-8 border-b border-[#ebd9c1] pb-4">
+                <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Categorías</h2>
+                <button onClick={() => setVistaActual('categorias')} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver Todas →</button>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                {todasLasCategorias.slice(0, 6).map((cat) => (
+                  <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white p-3 rounded-xl border border-[#eadecd] hover:border-amber-500 cursor-pointer text-center transition">
+                    <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-[#f7f2e8]">
+                      <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                    </div>
+                    <h3 className="font-serif font-bold text-xs uppercase text-zinc-800 group-hover:text-amber-700">{cat.nombre}</h3>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="py-12 bg-white border-t border-[#ebd9c1]">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-end mb-8 border-b border-[#ebd9c1] pb-4">
+                  <div>
+                    <span className="text-xs font-mono uppercase text-amber-800 font-bold">Colección Reciente</span>
+                    <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Nuevos Ingresos</h2>
+                  </div>
+                  <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver Todo el Catálogo →</button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                  {productos.map((prod) => {
+                    const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
+                    const pesoBase = prod.variantes[0]?.peso || 0;
+                    const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                    const enCarrito = estaEnCarrito(prod.id);
+
+                    return (
+                      <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                        <div>
+                          <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
+                            <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                            
+                            <div className="absolute top-3 left-3 flex flex-col gap-1">
+                              {prod.esNuevo && <span className="bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">Nuevo</span>}
+                              {enCarrito && <span className="bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">✓ En Carrito</span>}
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-1">
+                            <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
+                            <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                          </div>
+                        </div>
+
+                        {/* DESGLOSE DIFERENCIADO ENTRE PÚBLICO Y MAYORISTA */}
+                        <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
+                          {esMayorista ? (
+                            <div className="flex flex-col py-1">
+                              <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                              <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                              <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
+                            </div>
+                          )}
+                          <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* VISTA: CATEGORÍAS */}
+        {vistaActual === 'categorias' && (
+          <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white p-8 rounded-2xl border border-[#eadecd] shadow-xs mb-10 text-center">
+              <h1 className="text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wider">TODAS NUESTRAS CATEGORÍAS</h1>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {todasLasCategorias.map((cat) => (
+                <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white rounded-2xl border border-[#eadecd] overflow-hidden cursor-pointer hover:border-amber-500 transition shadow-xs">
+                  <div className="aspect-4/3 overflow-hidden bg-[#f7f2e8]">
+                    <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                  </div>
+                  <div className="p-5 text-center">
+                    <h3 className="font-serif font-bold text-base text-zinc-900 uppercase tracking-wider group-hover:text-amber-800">{cat.nombre}</h3>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: CATÁLOGO DE PRODUCTOS */}
+        {vistaActual === 'catalogo' && (
+          <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-[#ebd9c1] pb-6 gap-4">
+              <div>
+                <span className="text-xs font-mono text-amber-800 uppercase font-bold">Catálogo de Joyería</span>
+                <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">{categoriaFiltro === 'Todas' ? 'Todos los Productos' : `Categoría: ${categoriaFiltro}`}</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCategoriaFiltro('Todas')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${categoriaFiltro === 'Todas' ? 'bg-amber-800 text-white' : 'bg-[#f4ebd9] text-zinc-700'}`}>Todas</button>
+                {todasLasCategorias.map((c) => (
+                  <button key={c.id} onClick={() => setCategoriaFiltro(c.nombre)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${categoriaFiltro === c.nombre ? 'bg-amber-800 text-white' : 'bg-[#f4ebd9] text-zinc-700'}`}>{c.nombre}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {productosFiltrados.map((prod) => {
+                const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
+                const pesoBase = prod.variantes[0]?.peso || 0;
+                const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                const enCarrito = estaEnCarrito(prod.id);
+
+                return (
+                  <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                    <div>
+                      <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
+                        <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                        {enCarrito && (
+                          <span className="absolute top-3 left-3 bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">
+                            ✓ En Carrito
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-1">
+                        <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
+                        <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                      </div>
+                    </div>
+
+                    <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
+                      {esMayorista ? (
+                        <div className="flex flex-col py-1">
+                          <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                          <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                          <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
+                        </div>
+                      )}
+                      <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: CARRITO DE COMPRA (CON DIRECCIONAMIENTO A FICHA AL HACER CLIC) */}
+        {vistaActual === 'carrito' && (
+          <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / <span className="text-amber-800 font-bold">Carrito</span>
+            </div>
+
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-2">CARRITO DE COMPRA</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-6">PARA CONTINUAR CON EL PEDIDO HAGA CLIC EN EL BOTÓN "SIGUIENTE"</p>
+
+            <div className="flex justify-end mb-4">
+              <button 
+                onClick={() => setVistaActual('revision')}
+                disabled={carrito.length === 0}
+                className="bg-zinc-200 hover:bg-amber-700 hover:text-white text-zinc-800 text-xs uppercase font-bold px-8 py-2.5 rounded transition disabled:opacity-50"
+              >
+                SIGUIENTE →
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg border border-[#e5d8c3] overflow-x-auto shadow-xs">
+              <table className="w-full text-left text-xs font-sans">
+                <thead className="bg-[#f2ece1] border-b border-[#e5d8c3] text-zinc-600 font-bold uppercase">
+                  <tr>
+                    <th className="py-3 px-4 w-12 text-center">N°</th>
+                    <th className="py-3 px-4">ITEMS</th>
+                    <th className="py-3 px-4 text-center">PZ</th>
+                    <th className="py-3 px-4 text-center">CANT</th>
+                    <th className="py-3 px-4 text-right">TOTAL</th>
+                    <th className="py-3 px-4 text-center">i</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f2e7d5]">
+                  {carrito.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-zinc-400 uppercase tracking-wider">Tu carrito está vacío actualmente</td>
+                    </tr>
+                  ) : (
+                    carrito.map((item, index) => (
+                      <tr key={item.id} className="hover:bg-[#fcfaf7]">
+                        <td className="py-4 px-4 text-center font-bold text-zinc-400">{index + 1}</td>
+                        <td className="py-4 px-4">
+                          {/* MEJORA 1: CLIC EN EL ITEM ABRE LA FICHA DE DETALLE */}
+                          <div 
+                            onClick={() => verProductoDesdeCarrito(item.productoId)}
+                            className="flex items-center space-x-3 cursor-pointer group"
+                            title="Haz clic para ver el producto"
+                          >
+                            <img src={item.foto} alt={item.nombre} className="w-12 h-12 object-cover rounded bg-zinc-100 group-hover:opacity-80 transition" />
+                            <div>
+                              <p className="font-bold text-zinc-900 group-hover:text-amber-800 transition">{item.nombre} | Talla: {item.medida}</p>
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                SKU: {item.sku} {esMayorista && `| Peso: ${item.pesoUnitario}g`}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-center font-medium">Q{item.precio.toFixed(2)}</td>
+                        <td className="py-4 px-4 text-center">
+                          <div className="inline-flex items-center border border-[#e5d8c3] rounded bg-white">
+                            <button onClick={() => modificarCantidad(item.id, -1)} className="px-2 py-1 text-zinc-600 hover:bg-zinc-100 font-bold">◀</button>
+                            <span className="px-3 font-mono font-bold text-zinc-800">{item.cantidad}</span>
+                            <button onClick={() => modificarCantidad(item.id, 1)} className="px-2 py-1 text-zinc-600 hover:bg-zinc-100 font-bold">▶</button>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-right font-bold text-zinc-900">Q{(item.precio * item.cantidad).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-center">
+                          <button onClick={() => eliminarDelCarrito(item.id)} className="text-zinc-400 hover:text-rose-600 text-xs font-bold uppercase">✕ Quitar</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {carrito.length > 0 && (
+              <div className="mt-8 space-y-6">
+                <div className="flex justify-center items-center space-x-12 text-lg font-serif">
+                  <span className="text-zinc-600">Total pedido</span>
+                  <span className="font-bold text-zinc-800">{totalPiezas} piezas</span>
+                  <span className="font-bold text-amber-800 text-2xl">Q{totalMonto.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-4">
+                  <button onClick={vaciarCarrito} className="bg-zinc-100 border border-zinc-300 text-zinc-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold px-6 py-2.5 rounded uppercase tracking-wider transition">
+                    BORRAR CARRITO
+                  </button>
+                  <button onClick={() => setVistaActual('revision')} className="bg-zinc-200 hover:bg-amber-700 hover:text-white text-zinc-800 text-xs uppercase font-bold px-8 py-2.5 rounded transition">
+                    SIGUIENTE →
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* VISTA: INICIAR SESIÓN MAYORISTA */}
+        {vistaActual === 'login' && (
+          <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
+              
+              <div className="text-center space-y-2">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wide">
+                  INICIAR SESIÓN
+                </h1>
+                <p className="text-xs text-zinc-500 font-light leading-relaxed">
+                  Ingresa tus credenciales autorizadas para consultar el tarifario por gramo y realizar pedidos al por mayor.
+                </p>
+              </div>
+
+              <form onSubmit={ejecutarLoginMayorista} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                    USUARIO O CORREO ELECTRÓNICO *
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="ejemplo@joyeria.com o tu nombre"
+                    value={loginUsuario}
+                    onChange={(e) => setLoginUsuario(e.target.value)}
+                    className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600 transition"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-bold text-zinc-700 uppercase tracking-wider text-[11px]">
+                      CONTRASEÑA *
+                    </label>
+                    <a href="#" onClick={(e) => { e.preventDefault(); alert('Ponte en contacto con soporte para restablecer tu clave.'); }} className="text-[11px] text-amber-800 hover:underline">
+                      ¿Olvidaste tu contraseña?
+                    </a>
+                  </div>
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600 transition"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center space-x-2 cursor-pointer text-zinc-600">
+                    <input 
+                      type="checkbox" 
+                      checked={loginRecordar}
+                      onChange={(e) => setLoginRecordar(e.target.checked)}
+                      className="rounded border-amber-300 text-amber-700"
+                    />
+                    <span>Recordar mi sesión</span>
+                  </label>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={cargandoLogin}
+                  className="w-full bg-zinc-900 hover:bg-amber-800 text-amber-400 hover:text-white font-bold py-3.5 rounded-lg text-xs uppercase tracking-widest transition shadow-md flex items-center justify-center space-x-2 border border-amber-500/30"
+                >
+                  {cargandoLogin ? (
+                    <span>Verificando...</span>
+                  ) : (
+                    <span>INGRESAR AL PORTAL MAYORISTA →</span>
+                  )}
+                </button>
+              </form>
+
+              <div className="border-t border-[#eadcc7] pt-6 text-center space-y-3">
+                <p className="text-xs text-zinc-600">
+                  ¿Aún no tienes una cuenta de cliente mayorista?
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => setVistaActual('registro_mayorista')}
+                  className="w-full bg-[#f4ebd9] hover:bg-[#eae0cb] text-amber-950 font-bold py-3 rounded-lg text-xs uppercase tracking-wider border border-amber-300 transition"
+                >
+                  SOLICITAR REGISTRO MAYORISTA
+                </button>
+              </div>
+
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: REGISTRO DE NUEVO CLIENTE MAYORISTA */}
+        {vistaActual === 'registro_mayorista' && (
+          <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
+              
+              {!solicitudEnviada ? (
+                <>
+                  <div className="text-center space-y-2">
+                    <h1 className="text-2xl font-serif font-bold text-zinc-900 uppercase tracking-wide">
+                      SOLICITUD DE REGISTRO MAYORISTA
+                    </h1>
+                    <p className="text-xs text-zinc-500 font-light leading-relaxed">
+                      Ingresa tus datos para autorizar tu acceso al tarifario preferencial por gramo.
+                    </p>
+                  </div>
+
+                  <form onSubmit={enviarRegistroMayorista} className="space-y-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Nombre Completo *
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. Juan Pérez"
+                        value={datosRegistroMayorista.nombreCompleto}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, nombreCompleto: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Teléfono / WhatsApp *
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. 5555-0000"
+                        value={datosRegistroMayorista.telefono}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, telefono: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Correo Electrónico (Opcional)
+                      </label>
+                      <input 
+                        type="email" 
+                        placeholder="contacto@ejemplo.com"
+                        value={datosRegistroMayorista.correo}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, correo: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Tipo de Cliente
+                      </label>
+                      <select 
+                        value={datosRegistroMayorista.tipoCliente}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, tipoCliente: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600"
+                      >
+                        <option value="Particular">Particular / Comprador Personal</option>
+                        <option value="Tienda Física">Tengo Tienda Física / Sala de Ventas</option>
+                        <option value="Redes Sociales">Venta por Redes Sociales / Catálogo</option>
+                        <option value="Revendedor">Revendedor / Venta Ruteada</option>
+                        <option value="Emprendedor">Iniciando negocio de platería</option>
+                      </select>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#f0e6d6] space-y-3">
+                      <label className="flex items-center space-x-2.5 cursor-pointer text-zinc-700 font-bold text-xs p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg">
+                        <input 
+                          type="checkbox" 
+                          checked={datosRegistroMayorista.requiereEnvio}
+                          onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, requiereEnvio: e.target.checked })}
+                          className="rounded border-amber-300 text-amber-700 w-4 h-4"
+                        />
+                        <span>🚚 Requiero envío a domicilio para mis pedidos</span>
+                      </label>
+
+                      {datosRegistroMayorista.requiereEnvio && (
+                        <div>
+                          <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                            Dirección Exacta de Entrega (Opcional)
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder="Calle, avenida, zona, municipio o departamento"
+                            value={datosRegistroMayorista.direccion}
+                            onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, direccion: e.target.value })}
+                            className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3.5 rounded-lg text-xs uppercase tracking-wider transition shadow-md mt-2"
+                    >
+                      SOLICITAR ACCESO MAYORISTA
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setVistaActual('login')}
+                      className="w-full text-center text-xs text-zinc-500 hover:text-zinc-800 underline block pt-1"
+                    >
+                      ← Regresar a Iniciar Sesión
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="text-center space-y-4 py-6">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">
+                    ✓
+                  </div>
+                  <h2 className="text-2xl font-serif font-bold text-zinc-900 uppercase">
+                    ¡Solicitud Recibida!
+                  </h2>
+                  <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed">
+                    Gracias <strong className="text-zinc-900">{datosRegistroMayorista.nombreCompleto}</strong>. Evaluaremos tu perfil y te enviaremos tus credenciales de acceso al WhatsApp <strong className="text-zinc-900">{datosRegistroMayorista.telefono}</strong>.
+                  </p>
+                  <div className="pt-4">
+                    <button 
+                      onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }}
+                      className="bg-zinc-900 text-white font-bold py-3 px-8 rounded-lg text-xs uppercase tracking-wider hover:bg-zinc-800 transition"
+                    >
+                      Volver a Iniciar Sesión
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: REVISIÓN Y FORMULARIO DE ENVÍO */}
+        {vistaActual === 'revision' && (
+          <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / Mi cuenta / <span className="text-amber-800 font-bold">Revisión de orden y Envío</span>
+            </div>
+
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-1">DATOS DE ENVÍO Y REVISIÓN</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-8">COMPLETA TUS DATOS DE ENTREGA PARA ENVIAR TU PEDIDO A REVISIÓN</p>
+
+            <form onSubmit={procesarHacerPedido} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">1. DATOS DEL CLIENTE</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1">Nombre Completo *</label>
+                      <input type="text" required placeholder="Ej. María López" value={datosEnvio.nombreCompleto} onChange={(e) => setDatosEnvio({ ...datosEnvio, nombreCompleto: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1">Teléfono / WhatsApp *</label>
+                      <input type="text" required placeholder="Ej. 5555-0000" value={datosEnvio.telefono} onChange={(e) => setDatosEnvio({ ...datosEnvio, telefono: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">2. MÉTODO DE ENTREGA</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className={`p-4 rounded-lg border text-xs cursor-pointer flex items-start space-x-3 transition ${datosEnvio.metodoEntrega === 'envio' ? 'border-amber-600 bg-[#f2e6d3]/40 font-bold' : 'border-[#e5d8c3] bg-[#fcfaf7]'}`}>
+                      <input type="radio" name="entrega" checked={datosEnvio.metodoEntrega === 'envio'} onChange={() => setDatosEnvio({ ...datosEnvio, metodoEntrega: 'envio' })} />
+                      <div>
+                        <span className="block text-zinc-900">🚚 Envío a Domicilio</span>
+                        <span className="text-[11px] text-zinc-500 font-normal">Entrega por mensajería.</span>
+                      </div>
+                    </label>
+                    <label className={`p-4 rounded-lg border text-xs cursor-pointer flex items-start space-x-3 transition ${datosEnvio.metodoEntrega === 'tienda' ? 'border-amber-600 bg-[#f2e6d3]/40 font-bold' : 'border-[#e5d8c3] bg-[#fcfaf7]'}`}>
+                      <input type="radio" name="entrega" checked={datosEnvio.metodoEntrega === 'tienda'} onChange={() => setDatosEnvio({ ...datosEnvio, metodoEntrega: 'tienda' })} />
+                      <div>
+                        <span className="block text-zinc-900">🏬 Recoger en Tienda</span>
+                        <span className="text-[11px] text-zinc-500 font-normal">En nuestra sala de ventas.</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {datosEnvio.metodoEntrega === 'envio' && (
+                    <div className="pt-2 text-xs">
+                      <label className="block font-bold text-zinc-700 mb-1">Dirección Exacta de Entrega *</label>
+                      <input type="text" required={datosEnvio.metodoEntrega === 'envio'} placeholder="Calle, avenida, zona" value={datosEnvio.direccion} onChange={(e) => setDatosEnvio({ ...datosEnvio, direccion: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg border-l-4 border-l-amber-600 border border-[#e5d8c3] space-y-6 h-fit shadow-xs">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500">RESUMEN DE LA SOLICITUD</h2>
+                <div className="flex justify-between text-base pt-2 font-bold text-zinc-900">
+                  <span>Total orden:</span>
+                  <span className="text-amber-800">Q{totalMonto.toFixed(2)}</span>
+                </div>
+                <button type="submit" className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3.5 rounded text-xs uppercase tracking-wider transition shadow-md">
+                  HACER PEDIDO
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* VISTA: PANTALLA DE ÉXITO */}
+        {vistaActual === 'confirmado' && (
+          <section className="py-16 max-w-3xl mx-auto px-4 text-center min-h-[65vh] flex items-center justify-center">
+            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
+              <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">✓</div>
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase">¡Tu pedido se encuentra en revisión!</h1>
+              <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
+                Orden <strong className="font-mono text-zinc-900">#{numeroOrdenGenerado}</strong> recibida. Confirmaremos existencias a la brevedad.
+              </p>
+              <button onClick={enviarConfirmacionCliente} className="bg-zinc-900 text-white font-bold py-3 px-6 rounded text-xs uppercase">
+                Abrir WhatsApp con mi Pedido
+              </button>
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* VENTANA DE DETALLE DE PRODUCTO (ESTILO ARGYROS) */}
+      {productoSeleccionadoModal && (
+        <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setProductoSeleccionadoModal(null)} className="absolute top-4 right-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold w-8 h-8 rounded-full flex items-center justify-center z-10">✕</button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              
+              <div className="space-y-3">
+                <div className="aspect-square bg-white rounded-xl overflow-hidden border border-zinc-200">
+                  <img src={productoSeleccionadoModal.fotos[fotoActivaIndex] || productoSeleccionadoModal.fotos[0]} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {productoSeleccionadoModal.fotos.map((foto: string, idx: number) => (
+                    <button key={idx} onClick={() => setFotoActivaIndex(idx)} className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${fotoActivaIndex === idx ? 'border-amber-600' : 'border-zinc-200'}`}>
+                      <img src={foto} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h2 className="font-serif font-bold text-2xl text-zinc-900">{productoSeleccionadoModal.nombre}</h2>
+                  <p className="text-zinc-500 text-xs mt-1">{productoSeleccionadoModal.descripcion}</p>
+                </div>
+
+                <div className="space-y-1 text-zinc-500 font-mono text-[11px]">
+                  <p><strong className="text-zinc-700">ID:</strong> {productoSeleccionadoModal.sku}</p>
+                  <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
+                </div>
+
+                {/* DESGLOSE MAYORISTA SI TIENE SESIÓN INICIADA */}
+                {esMayorista && clienteMayoristaActivo ? (
+                  <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
+                    <div className="flex justify-between text-zinc-600">
+                      <span>Peso pieza:</span>
+                      <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
+                    </div>
+                    <div className="flex justify-between text-zinc-600">
+                      <span>Precio por gramo asignado:</span>
+                      <strong className="font-mono text-emerald-800">Q{(clienteMayoristaActivo.tarifasPorGramo[productoSeleccionadoModal.categoria] || 36).toFixed(2)} /g</strong>
+                    </div>
+                    <div className="border-t border-amber-200/60 pt-2 flex justify-between items-baseline">
+                      <span className="font-bold text-zinc-700">Precio Total Pieza:</span>
+                      <span className="font-serif font-bold text-2xl text-amber-900">
+                        Q{obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <span className="font-serif font-bold text-3xl text-zinc-900">Q{productoSeleccionadoModal.precioMinorista}.00</span>
+                  </div>
+                )}
+
+                {/* SELECTOR DE TALLAS / MEDIDAS (ESTILO ARGYROS) */}
+                <div className="pt-4 border-t border-zinc-200 space-y-4">
+                  <p className="text-zinc-600 font-semibold">Seleccione una talla y cantidad:</p>
+                  
+                  <div className="flex items-center space-x-3">
+                    <span className="font-bold text-zinc-700 w-20">Tallas (us)</span>
+                    <div className="flex flex-wrap gap-2">
+                      {productoSeleccionadoModal.variantes.map((v: any) => (
+                        <button
+                          key={v.id}
+                          onClick={() => setVarianteElegida(v)}
+                          className={`w-9 h-9 border rounded font-bold transition flex items-center justify-center ${
+                            varianteElegida?.id === v.id ? 'border-amber-700 bg-amber-50 text-amber-900 font-extrabold ring-2 ring-amber-600/30' : 'border-zinc-300 text-zinc-700 hover:border-zinc-400'
+                          }`}
+                        >
+                          {v.medida}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* MEJORA 2: AVISO SI ESTA TALLA ESPECÍFICA YA FUE AGREGADA AL CARRITO */}
+                  {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center space-x-2">
+                      <span>✓</span>
+                      <span>Esta talla ya se encuentra agregada en tu carrito de compras.</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-3 pt-2">
+                    <span className="font-bold text-zinc-700 w-20">Cantidad</span>
+                    <div className="inline-flex items-center border border-zinc-300 rounded bg-zinc-50">
+                      <button onClick={() => setCantidadModal(Math.max(1, cantidadModal - 1))} className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-200 font-bold">◀</button>
+                      <span className="px-4 font-bold text-zinc-800">{cantidadModal}</span>
+                      <button onClick={() => setCantidadModal(cantidadModal + 1)} className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-200 font-bold">▶</button>
+                    </div>
+
+                    <button 
+                      onClick={agregarAlCarritoSilencioso} 
+                      className="flex-1 bg-[#eadcc7] hover:bg-amber-700 hover:text-white text-zinc-900 font-bold text-xs uppercase py-3 rounded tracking-wider transition border border-amber-300/80"
+                    >
+                      {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) ? 'AGREGAR MÁS PIEZAS' : 'AGREGAR A COMPRA'}
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-200 pt-6 space-y-4">
+              <h3 className="font-serif font-bold text-sm uppercase text-zinc-900">También te podría gustar</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {productosSimilares.slice(0, 3).map((prodSim) => (
+                  <div key={prodSim.id} onClick={() => abrirModalDetalle(prodSim)} className="bg-white p-3 rounded-xl border border-zinc-200 cursor-pointer text-center">
+                    <img src={prodSim.fotos[0]} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />
+                    <p className="font-serif font-bold text-xs text-zinc-800 truncate">{prodSim.nombre}</p>
+                    <p className="font-bold text-xs text-amber-800">Q{obtenerPrecioCalculado(prodSim, prodSim.variantes[0]).toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIE DE PÁGINA */}
+      <footer className="bg-[#f0e6d6] text-zinc-800 py-12 border-t border-[#dfcfb9] text-xs mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NOSOTROS</h4>
+            <p className="text-zinc-600 leading-relaxed font-light">Distribuidor de platería fina en plata ley 925.</p>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NAVEGACIÓN</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              <li><button onClick={() => setVistaActual('inicio')} className="hover:text-amber-800">Inicio</button></li>
+              <li><button onClick={() => setVistaActual('categorias')} className="hover:text-amber-800">Categorías</button></li>
+              <li><button onClick={() => setVistaActual('catalogo')} className="hover:text-amber-800">Catálogo</button></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTAS</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              <li><button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className="hover:text-amber-800">Acceso Mayoristas / Tarifario Gramo</button></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">CONTACTO</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              <li>📍 Ciudad de Guatemala</li>
+              <li>📞 (+502) 5555-0101</li>
+            </ul>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  );
+}

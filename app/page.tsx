@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function TiendaPublica() {
   const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
 
-  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista'
-  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista'>('inicio');
+  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'
+  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'>('inicio');
   
   // ESTADO DE SESIÓN MAYORISTA
   const [esMayorista, setEsMayorista] = useState(false);
@@ -19,6 +19,18 @@ export default function TiendaPublica() {
   const [fotoActivaIndex, setFotoActivaIndex] = useState(0);
   const [varianteElegida, setVarianteElegida] = useState<any>(null);
   const [cantidadModal, setCantidadModal] = useState<number>(1);
+
+  // HISTORIAL DE PEDIDOS DEL CLIENTE (Sincronizado con localStorage)
+  const [misPedidos, setMisPedidos] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const guardados = localStorage.getItem('ag47_pedidos_admin');
+      if (guardados) {
+        try { setMisPedidos(JSON.parse(guardados)); } catch(e) {}
+      }
+    }
+  }, [vistaActual]);
 
   // DATOS DEL FORMULARIO LOGIN MAYORISTA
   const [loginUsuario, setLoginUsuario] = useState('');
@@ -246,7 +258,7 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE PARA EL PANEL ADMIN
+  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE PARA EL PANEL ADMIN E HISTORIAL
   const procesarHacerPedido = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -263,10 +275,11 @@ export default function TiendaPublica() {
     const numOrden = Math.floor(1000 + Math.random() * 9000);
     setNumeroOrdenGenerado(numOrden.toString());
 
-    // CREAR EL OBJETO DE PEDIDO PARA EL PANEL ADMIN
+    // CREAR EL OBJETO DE PEDIDO
     const nuevoPedidoWeb = {
       id: numOrden,
       cliente: datosEnvio.nombreCompleto,
+      telefono: datosEnvio.telefono,
       tarifaG: esMayorista ? 36 : 35,
       estado: 'Pendiente de revisar',
       fecha: new Date().toISOString().slice(0, 10),
@@ -285,6 +298,8 @@ export default function TiendaPublica() {
     const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
     const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
     localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
+    setMisPedidos(pedidosActualizados);
+    setCarrito([]);
 
     setVistaActual('confirmado');
   };
@@ -371,7 +386,13 @@ export default function TiendaPublica() {
         {/* BARRA SUPERIOR DE AVISO CON INDICADOR DE SESIÓN */}
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-3 items-center">
+            <button 
+              onClick={() => setVistaActual('historial')} 
+              className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
+            >
+              📦 Mis Pedidos ({misPedidos.length})
+            </button>
             {esMayorista ? (
               <div className="flex items-center space-x-2 bg-amber-800 text-white px-3 py-0.5 rounded text-[10px] font-mono">
                 <span>👑 Mayorista: <strong>{clienteMayoristaActivo?.nombre}</strong></span>
@@ -408,6 +429,7 @@ export default function TiendaPublica() {
               <button onClick={() => setVistaActual('inicio')} className={`transition ${vistaActual === 'inicio' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Inicio</button>
               <button onClick={() => setVistaActual('categorias')} className={`transition ${vistaActual === 'categorias' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Categorías</button>
               <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className={`transition ${vistaActual === 'catalogo' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Catálogo</button>
+              <button onClick={() => setVistaActual('historial')} className={`transition ${vistaActual === 'historial' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Mis Pedidos</button>
               {!esMayorista && (
                 <button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className={`transition ${vistaActual === 'login' || vistaActual === 'registro_mayorista' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-800'}`}>Iniciar Sesión</button>
               )}
@@ -551,6 +573,68 @@ export default function TiendaPublica() {
           </>
         )}
 
+        {/* VISTA: HISTORIAL DE PEDIDOS */}
+        {vistaActual === 'historial' && (
+          <section className="py-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / <span className="text-amber-800 font-bold">Historial de Pedidos</span>
+            </div>
+
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-2">MIS PEDIDOS REALIZADOS</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-6">CONSULTA AQUÍ EL ESTADO ACTUAL DE TUS SOLICITUDES EN TIEMPO REAL</p>
+
+            {misPedidos.length === 0 ? (
+              <div className="bg-white p-12 rounded-xl border border-[#e5d8c3] text-center space-y-4">
+                <p className="text-zinc-500 text-xs uppercase tracking-wider">Aún no has registrado ningún pedido en este navegador.</p>
+                <button onClick={() => setVistaActual('catalogo')} className="bg-amber-700 text-white font-bold text-xs px-6 py-2.5 rounded uppercase">
+                  Ver Catálogo de Joyería
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {misPedidos.map((ped) => (
+                  <div key={ped.id} className="bg-white rounded-xl border border-[#e5d8c3] p-5 shadow-xs space-y-4 text-xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#f2e7d5] pb-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-zinc-900 text-sm">Pedido #{ped.id}</span>
+                          <span className="text-zinc-400">•</span>
+                          <span className="text-zinc-600 font-medium">{ped.cliente}</span>
+                        </div>
+                        <p className="text-zinc-400 text-[11px] mt-0.5">Fecha de solicitud: {ped.fecha}</p>
+                      </div>
+
+                      {/* ETIQUETA DINÁMICA DE ESTADO */}
+                      <div>
+                        <span className={`px-3 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
+                          ped.estado === 'Pendiente de revisar' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          ped.estado === 'Por confirmar cambios' ? 'bg-blue-100 text-blue-900 border border-blue-300' :
+                          ped.estado === 'Revisado' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                          'bg-rose-100 text-rose-900 border border-rose-300'
+                        }`}>
+                          {ped.estado}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="font-bold text-zinc-700 uppercase text-[10px]">Artículos Solicitados:</p>
+                      <div className="divide-y divide-zinc-100 bg-[#fcfaf7] rounded-lg p-3 border border-[#f0e6d6]">
+                        {ped.items?.map((it: any, idx: number) => (
+                          <div key={idx} className="py-1.5 flex justify-between items-center text-xs">
+                            <span className="text-zinc-800 font-medium">• {it.nombre}</span>
+                            <span className="font-mono text-zinc-600">Cant: {it.cantidadSolicitada}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* VISTA: CATEGORÍAS */}
         {vistaActual === 'categorias' && (
           <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -632,7 +716,7 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: CARRITO DE COMPRA (CON DIRECCIONAMIENTO A FICHA AL HACER CLIC) */}
+        {/* VISTA: CARRITO DE COMPRA */}
         {vistaActual === 'carrito' && (
           <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
             <div className="text-xs text-zinc-500 mb-4 font-serif">
@@ -674,7 +758,6 @@ export default function TiendaPublica() {
                       <tr key={item.id} className="hover:bg-[#fcfaf7]">
                         <td className="py-4 px-4 text-center font-bold text-zinc-400">{index + 1}</td>
                         <td className="py-4 px-4">
-                          {/* CLIC EN EL ITEM ABRE LA FICHA DE DETALLE */}
                           <div 
                             onClick={() => verProductoDesdeCarrito(item.productoId)}
                             className="flex items-center space-x-3 cursor-pointer group"
@@ -1040,9 +1123,14 @@ export default function TiendaPublica() {
               <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
                 Orden <strong className="font-mono text-zinc-900">#{numeroOrdenGenerado}</strong> recibida. Confirmaremos existencias a la brevedad.
               </p>
-              <button onClick={enviarConfirmacionCliente} className="bg-zinc-900 text-white font-bold py-3 px-6 rounded text-xs uppercase">
-                Abrir WhatsApp con mi Pedido
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button onClick={() => setVistaActual('historial')} className="bg-amber-700 text-white font-bold py-3 px-6 rounded text-xs uppercase">
+                  Ver Historial de Mis Pedidos
+                </button>
+                <button onClick={enviarConfirmacionCliente} className="bg-zinc-900 text-white font-bold py-3 px-6 rounded text-xs uppercase">
+                  Abrir WhatsApp con mi Pedido
+                </button>
+              </div>
             </div>
           </section>
         )}
@@ -1182,6 +1270,7 @@ export default function TiendaPublica() {
               <li><button onClick={() => setVistaActual('inicio')} className="hover:text-amber-800">Inicio</button></li>
               <li><button onClick={() => setVistaActual('categorias')} className="hover:text-amber-800">Categorías</button></li>
               <li><button onClick={() => setVistaActual('catalogo')} className="hover:text-amber-800">Catálogo</button></li>
+              <li><button onClick={() => setVistaActual('historial')} className="hover:text-amber-800">Mis Pedidos</button></li>
             </ul>
           </div>
           <div className="space-y-3">

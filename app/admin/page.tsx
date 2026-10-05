@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 export default function TiendaPublica() {
   const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
 
-  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial' | 'nosotros'
-  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial' | 'nosotros'>('inicio');
+  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'
+  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'>('inicio');
   
   // ESTADO DE SESIÓN MAYORISTA
   const [esMayorista, setEsMayorista] = useState(false);
@@ -20,12 +20,8 @@ export default function TiendaPublica() {
   const [varianteElegida, setVarianteElegida] = useState<any>(null);
   const [cantidadModal, setCantidadModal] = useState<number>(1);
 
-  // DATOS DE CONTACTO Y CONFIGURACIÓN EDITABLES DESDE EL ADMIN (Sincronizados)
-  const [infoAdmin, setInfoAdmin] = useState({
-    direcciones: ['Ciudad de Guatemala'],
-    telefonos: ['(+502) 5555-0101'],
-    nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
-  });
+  // HISTORIAL DE PEDIDOS DEL CLIENTE (Sincronizado con localStorage)
+  const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -33,23 +29,8 @@ export default function TiendaPublica() {
       if (guardados) {
         try { setMisPedidos(JSON.parse(guardados)); } catch(e) {}
       }
-
-      const configAdmin = localStorage.getItem('config_portada_ag47');
-      if (configAdmin) {
-        try {
-          const parsed = JSON.parse(configAdmin);
-          setInfoAdmin({
-            direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
-            telefonos: parsed.telefonos || ['(+502) 5555-0101'],
-            nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
-          });
-        } catch(e) {}
-      }
     }
   }, [vistaActual]);
-
-  // HISTORIAL DE PEDIDOS DEL CLIENTE
-  const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
   // DATOS DEL FORMULARIO LOGIN MAYORISTA
   const [loginUsuario, setLoginUsuario] = useState('');
@@ -219,6 +200,7 @@ export default function TiendaPublica() {
     setCantidadModal(1);
   };
 
+  // ABRIR EL MODAL DE DETALLE DESDE EL CARRITO
   const verProductoDesdeCarrito = (productoId: number) => {
     const productoEncontrado = productos.find(p => p.id === productoId);
     if (productoEncontrado) {
@@ -276,7 +258,7 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE
+  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE PARA EL PANEL ADMIN E HISTORIAL
   const procesarHacerPedido = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -293,6 +275,7 @@ export default function TiendaPublica() {
     const numOrden = Math.floor(1000 + Math.random() * 9000);
     setNumeroOrdenGenerado(numOrden.toString());
 
+    // CREAR EL OBJETO DE PEDIDO
     const nuevoPedidoWeb = {
       id: numOrden,
       cliente: datosEnvio.nombreCompleto,
@@ -311,6 +294,7 @@ export default function TiendaPublica() {
       }))
     };
 
+    // OBTENER PEDIDOS EXISTENTES DE LOCALSTORAGE E INSERTAR EL NUEVO
     const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
     const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
     localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
@@ -399,16 +383,10 @@ export default function TiendaPublica() {
     <div className="min-h-screen bg-[#faf7f2] text-zinc-900 font-sans selection:bg-amber-100 flex flex-col justify-between">
       
       <div>
-        {/* BARRA SUPERIOR DE AVISO CON ACCESO AL ADMIN Y MIS PEDIDOS */}
+        {/* BARRA SUPERIOR DE AVISO CON INDICADOR DE SESIÓN */}
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
-          <div className="flex gap-2 items-center">
-            <a 
-              href="/admin" 
-              className="font-mono text-[10px] bg-amber-700 hover:bg-amber-800 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
-            >
-              ⚙️ Ir a Admin
-            </a>
+          <div className="flex gap-3 items-center">
             <button 
               onClick={() => setVistaActual('historial')} 
               className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
@@ -498,7 +476,7 @@ export default function TiendaPublica() {
                   <p className="text-zinc-600 text-sm font-light leading-relaxed">
                     {esMayorista 
                       ? `Bienvenido/a ${clienteMayoristaActivo?.nombre}. Tu tarifario preferencial por gramo se encuentra activo en todas las joyas.`
-                      : infoAdmin.nosotrosTexto
+                      : 'Explora nuestras colecciones exclusivas. Consulta productos al detalle por categorías o solicita tu acceso a precios mayoristas.'
                     }
                   </p>
                   <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -571,6 +549,7 @@ export default function TiendaPublica() {
                           </div>
                         </div>
 
+                        {/* DESGLOSE DIFERENCIADO ENTRE PÚBLICO Y MAYORISTA */}
                         <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
                           {esMayorista ? (
                             <div className="flex flex-col py-1">
@@ -625,6 +604,7 @@ export default function TiendaPublica() {
                         <p className="text-zinc-400 text-[11px] mt-0.5">Fecha de solicitud: {ped.fecha}</p>
                       </div>
 
+                      {/* ETIQUETA DINÁMICA DE ESTADO */}
                       <div>
                         <span className={`px-3 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
                           ped.estado === 'Pendiente de revisar' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
@@ -1156,7 +1136,7 @@ export default function TiendaPublica() {
         )}
       </div>
 
-      {/* VENTANA DE DETALLE DE PRODUCTO */}
+      {/* VENTANA DE DETALLE DE PRODUCTO (ESTILO ARGYROS) */}
       {productoSeleccionadoModal && (
         <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto">
@@ -1188,6 +1168,7 @@ export default function TiendaPublica() {
                   <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
                 </div>
 
+                {/* DESGLOSE MAYORISTA SI TIENE SESIÓN INICIADA */}
                 {esMayorista && clienteMayoristaActivo ? (
                   <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
                     <div className="flex justify-between text-zinc-600">
@@ -1211,6 +1192,7 @@ export default function TiendaPublica() {
                   </div>
                 )}
 
+                {/* SELECTOR DE TALLAS / MEDIDAS (ESTILO ARGYROS) */}
                 <div className="pt-4 border-t border-zinc-200 space-y-4">
                   <p className="text-zinc-600 font-semibold">Seleccione una talla y cantidad:</p>
                   
@@ -1231,6 +1213,7 @@ export default function TiendaPublica() {
                     </div>
                   </div>
 
+                  {/* AVISO SI ESTA TALLA ESPECÍFICA YA FUE AGREGADA AL CARRITO */}
                   {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) && (
                     <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center space-x-2">
                       <span>✓</span>
@@ -1274,12 +1257,12 @@ export default function TiendaPublica() {
         </div>
       )}
 
-      {/* PIE DE PÁGINA CON DATOS SINCRONIZADOS DEL ADMIN Y ACCESO DIRECTO */}
+      {/* PIE DE PÁGINA */}
       <footer className="bg-[#f0e6d6] text-zinc-800 py-12 border-t border-[#dfcfb9] text-xs mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NOSOTROS</h4>
-            <p className="text-zinc-600 leading-relaxed font-light">{infoAdmin.nosotrosTexto}</p>
+            <p className="text-zinc-600 leading-relaxed font-light">Distribuidor de platería fina en plata ley 925.</p>
           </div>
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NAVEGACIÓN</h4>
@@ -1288,7 +1271,6 @@ export default function TiendaPublica() {
               <li><button onClick={() => setVistaActual('categorias')} className="hover:text-amber-800">Categorías</button></li>
               <li><button onClick={() => setVistaActual('catalogo')} className="hover:text-amber-800">Catálogo</button></li>
               <li><button onClick={() => setVistaActual('historial')} className="hover:text-amber-800">Mis Pedidos</button></li>
-              <li><a href="/admin" className="text-amber-900 font-bold hover:underline">⚙️ Panel Admin</a></li>
             </ul>
           </div>
           <div className="space-y-3">
@@ -1300,8 +1282,8 @@ export default function TiendaPublica() {
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">CONTACTO</h4>
             <ul className="space-y-2 font-light text-zinc-600">
-              {infoAdmin.direcciones.map((d, idx) => <li key={idx}>📍 {d}</li>)}
-              {infoAdmin.telefonos.map((t, idx) => <li key={idx}>📞 {t}</li>)}
+              <li>📍 Ciudad de Guatemala</li>
+              <li>📞 (+502) 5555-0101</li>
             </ul>
           </div>
         </div>

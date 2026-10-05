@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function PosPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -64,22 +65,10 @@ export default function PosPage() {
         </button>
       </div>
 
-      <PosDashboard />
+      <PosDashboardContent />
     </div>
   );
 }
-
-function PosDashboard() {
-  return (
-    <div className="p-8 bg-slate-950 min-h-screen text-slate-100">
-      <h1 className="text-3xl font-bold text-amber-400 mb-4">Punto de Venta (POS)</h1>
-      <p className="text-slate-400">Aquí se encuentra la interfaz de cobros y ventas rápidas de tu joyería.</p>
-    </div>
-  );
-}
-
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 // Base de Datos Simulada de Productos en Caja
 const productosBase = [
@@ -136,7 +125,7 @@ const clientesVIP = [
   },
 ];
 
-export default function PosPage() {
+function PosDashboardContent() {
   const router = useRouter();
   const inputEscanerRef = useRef<HTMLInputElement>(null);
 
@@ -401,7 +390,10 @@ export default function PosPage() {
             ← Panel Admin
           </button>
           <button 
-            onClick={() => router.push('/login')}
+            onClick={() => {
+              localStorage.removeItem('pos_auth');
+              window.location.reload();
+            }}
             className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs px-3 py-2 rounded-xl transition font-mono"
           >
             Cerrar Turno

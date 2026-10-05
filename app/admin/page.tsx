@@ -731,11 +731,105 @@ function AdminDashboard() {
 
             {pedidoDetalleModal && (
               <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-2xl w-full space-y-4 text-xs">
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-2xl w-full space-y-4 text-xs max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h3 className="font-bold text-amber-400 text-sm">Revisión Pedido #{pedidoDetalleModal.id}</h3>
+                    <div>
+                      <h3 className="font-bold text-amber-400 text-sm">Revisión Pedido #{pedidoDetalleModal.id}</h3>
+                      <p className="text-slate-400 text-[11px]">Cliente: {pedidoDetalleModal.cliente} | Fecha: {pedidoDetalleModal.fecha}</p>
+                    </div>
                     <button onClick={() => setPedidoDetalleModal(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
                   </div>
+
+                  <div className="space-y-3">
+                    <p className="font-bold uppercase text-amber-400">Artículos Solicitados y Disponibilidad:</p>
+                    
+                    {pedidoDetalleModal.items.map((item: any) => (
+                      <div key={item.id} className="bg-slate-950 border border-slate-800 p-3.5 rounded-lg space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-white text-sm">{item.nombre}</p>
+                            <p className="text-slate-400 text-[11px]">Peso: {item.peso}g | Solicitados: <strong className="text-amber-400">{item.cantidadSolicitada}</strong></p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-900">
+                          {/* BOTONES SÍ / NO PARA DISPONIBILIDAD */}
+                          <div className="flex items-center space-x-2">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">¿Hay stock?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const itemsActualizados = pedidoDetalleModal.items.map((it: any) => 
+                                  it.id === item.id ? { ...it, estado: 'Disponible', cantidadDisponible: it.cantidadSolicitada } : it
+                                );
+                                setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
+                              }}
+                              className={`px-3 py-1 rounded font-bold text-[10px] transition ${
+                                item.estado === 'Disponible' ? 'bg-emerald-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                              }`}
+                            >
+                              SÍ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const itemsActualizados = pedidoDetalleModal.items.map((it: any) => 
+                                  it.id === item.id ? { ...it, estado: 'Agotado', cantidadDisponible: 0 } : it
+                                );
+                                setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
+                              }}
+                              className={`px-3 py-1 rounded font-bold text-[10px] transition ${
+                                item.estado === 'Agotado' ? 'bg-rose-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                              }`}
+                            >
+                              NO
+                            </button>
+                          </div>
+
+                          {/* CONTROLES PARA SUBIR O BAJAR CANTIDAD DISPONIBLE */}
+                          <div className="flex items-center space-x-2">
+                            <span className="text-slate-400 font-bold uppercase text-[10px]">Cant. Disponible:</span>
+                            <div className="inline-flex items-center border border-slate-700 rounded bg-slate-900">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const actual = item.cantidadDisponible !== undefined ? item.cantidadDisponible : item.cantidadSolicitada;
+                                  const nuevaCant = Math.max(0, actual - 1);
+                                  const itemsActualizados = pedidoDetalleModal.items.map((it: any) => 
+                                    it.id === item.id ? { ...it, cantidadDisponible: nuevaCant, estado: nuevaCant === 0 ? 'Agotado' : it.estado } : it
+                                  );
+                                  setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
+                                }}
+                                className="px-2.5 py-1 text-slate-300 hover:bg-slate-800 font-bold"
+                              >
+                                ◀
+                              </button>
+                              
+                              <span className="px-3 font-mono font-bold text-amber-400">
+                                {item.cantidadDisponible !== undefined ? item.cantidadDisponible : item.cantidadSolicitada}
+                              </span>
+                              
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const actual = item.cantidadDisponible !== undefined ? item.cantidadDisponible : item.cantidadSolicitada;
+                                  const nuevaCant = actual + 1;
+                                  const itemsActualizados = pedidoDetalleModal.items.map((it: any) => 
+                                    it.id === item.id ? { ...it, cantidadDisponible: nuevaCant, estado: 'Disponible' } : it
+                                  );
+                                  setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
+                                }}
+                                className="px-2.5 py-1 text-slate-300 hover:bg-slate-800 font-bold"
+                              >
+                                ▶
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   <div className="flex justify-end space-x-2 border-t border-slate-800 pt-3">
                     <button onClick={() => setPedidoDetalleModal(null)} className="bg-slate-800 text-slate-300 font-bold px-4 py-2 rounded">Cancelar</button>
                     <button onClick={guardarRevisionPedido} className="bg-emerald-600 text-white font-bold px-4 py-2 rounded uppercase">Guardar</button>

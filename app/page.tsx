@@ -246,6 +246,7 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
+  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE PARA EL PANEL ADMIN
   const procesarHacerPedido = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -259,8 +260,32 @@ export default function TiendaPublica() {
       return;
     }
 
-    const numOrden = 'AG47-' + Math.floor(100000 + Math.random() * 900000);
-    setNumeroOrdenGenerado(numOrden);
+    const numOrden = Math.floor(1000 + Math.random() * 9000);
+    setNumeroOrdenGenerado(numOrden.toString());
+
+    // CREAR EL OBJETO DE PEDIDO PARA EL PANEL ADMIN
+    const nuevoPedidoWeb = {
+      id: numOrden,
+      cliente: datosEnvio.nombreCompleto,
+      tarifaG: esMayorista ? 36 : 35,
+      estado: 'Pendiente de revisar',
+      fecha: new Date().toISOString().slice(0, 10),
+      items: carrito.map((item, index) => ({
+        id: index + 1,
+        productoId: item.productoId,
+        nombre: `${item.nombre} (Talla: ${item.medida})`,
+        peso: item.pesoUnitario || 0,
+        cantidadSolicitada: item.cantidad,
+        cantidadDisponible: item.cantidad,
+        estado: 'Disponible'
+      }))
+    };
+
+    // OBTENER PEDIDOS EXISTENTES DE LOCALSTORAGE E INSERTAR EL NUEVO
+    const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
+    const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
+    localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
+
     setVistaActual('confirmado');
   };
 
@@ -649,7 +674,7 @@ export default function TiendaPublica() {
                       <tr key={item.id} className="hover:bg-[#fcfaf7]">
                         <td className="py-4 px-4 text-center font-bold text-zinc-400">{index + 1}</td>
                         <td className="py-4 px-4">
-                          {/* MEJORA 1: CLIC EN EL ITEM ABRE LA FICHA DE DETALLE */}
+                          {/* CLIC EN EL ITEM ABRE LA FICHA DE DETALLE */}
                           <div 
                             onClick={() => verProductoDesdeCarrito(item.productoId)}
                             className="flex items-center space-x-3 cursor-pointer group"
@@ -1100,7 +1125,7 @@ export default function TiendaPublica() {
                     </div>
                   </div>
 
-                  {/* MEJORA 2: AVISO SI ESTA TALLA ESPECÍFICA YA FUE AGREGADA AL CARRITO */}
+                  {/* AVISO SI ESTA TALLA ESPECÍFICA YA FUE AGREGADA AL CARRITO */}
                   {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) && (
                     <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center space-x-2">
                       <span>✓</span>

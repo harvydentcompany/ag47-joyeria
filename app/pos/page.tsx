@@ -1,4 +1,83 @@
 'use client';
+import { useState, useEffect } from 'react';
+
+export default function PosPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const auth = localStorage.getItem('pos_auth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === 'Yaosalazar1986@') {
+      localStorage.setItem('pos_auth', 'true');
+      setIsAuthenticated(true);
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-xl shadow-lg w-96 border border-slate-800">
+          <h2 className="text-2xl font-bold mb-6 text-center text-amber-400">Punto de Venta AG47</h2>
+          {error && <p className="text-rose-500 text-sm mb-4 text-center font-medium">Contraseña incorrecta</p>}
+          <input 
+            type="password" 
+            placeholder="Introduce tu contraseña" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            required
+          />
+          <button 
+            type="submit" 
+            className="w-full bg-amber-500 text-slate-950 p-3 rounded-lg font-bold hover:bg-amber-400 transition"
+          >
+            Ingresar al POS
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-xs">
+        <span className="text-slate-400">Sesión POS Segura</span>
+        <button 
+          onClick={() => {
+            localStorage.removeItem('pos_auth');
+            setIsAuthenticated(false);
+          }}
+          className="bg-rose-600 text-white px-3 py-1.5 rounded font-bold hover:bg-rose-500 transition"
+        >
+          Cerrar Sesión
+        </button>
+      </div>
+
+      <PosDashboard />
+    </div>
+  );
+}
+
+function PosDashboard() {
+  return (
+    <div className="p-8 bg-slate-950 min-h-screen text-slate-100">
+      <h1 className="text-3xl font-bold text-amber-400 mb-4">Punto de Venta (POS)</h1>
+      <p className="text-slate-400">Aquí se encuentra la interfaz de cobros y ventas rápidas de tu joyería.</p>
+    </div>
+  );
+}
+
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 

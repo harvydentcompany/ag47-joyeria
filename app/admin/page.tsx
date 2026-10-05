@@ -234,46 +234,77 @@ function AdminDashboard() {
     variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
   });
 
-  // 4. PORTADA, MARCA Y COLORES
-  const [portada, setPortada] = useState({
-    logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
-    titulo: 'Colección Mayorista y Minorista',
-    subtitulo: 'Especial de Temporada - Joyería en Plata 925',
-    bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
-    colorWebPrincipal: '#f59e0b',
-    colorWebFondo: '#020617',
-    colorWebTexto: '#ffffff',
-    colorPosPrincipal: '#10b981',
-    colorPosFondo: '#0f172a',
-    colorAdminPrincipal: '#3b82f6',
-    colorAdminFondo: '#020617'
+  // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS"
+  const [portada, setPortada] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardado = localStorage.getItem('config_portada_ag47');
+      if (guardado) {
+        try { return JSON.parse(guardado); } catch(e) {}
+      }
+    }
+    return {
+      logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
+      titulo: 'Colección Mayorista y Minorista',
+      subtitulo: 'Especial de Temporada - Joyería en Plata 925',
+      bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
+      fuenteEstilo: 'font-sans',
+      colorWebPrincipal: '#f59e0b',
+      colorWebFondo: '#020617',
+      colorWebTexto: '#ffffff',
+      direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala', 'Centro Comercial Pradera Zona 4, Quetzaltenango'],
+      telefonos: ['+502 5555-1234', '+502 4444-5678'],
+      redesSociales: {
+        facebook: 'https://facebook.com/ag47joyeria',
+        instagram: 'https://instagram.com/ag47joyeria',
+        tiktok: 'https://tiktok.com/@ag47joyeria',
+        whatsapp: 'https://wa.me/50255551234'
+      },
+      nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
+    };
   });
 
-  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS
+  const guardarConfiguracionPortada = () => {
+    localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
+    alert('¡Configuración de marca, textos y estilos guardada con éxito y sincronizada con la web!');
+  };
+
+  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS (SINCRONIZADOS CON LOCALSTORAGE)
   const [filtroEstadoPedido, setFiltroEstadoPedido] = useState('Todos');
-  const [pedidos, setPedidos] = useState([
-    {
-      id: 1042,
-      cliente: 'María López',
-      tarifaG: 36,
-      estado: 'Pendiente de revisar',
-      fecha: '2026-09-24',
-      items: [
-        { id: 1, productoId: 101, nombre: 'Anillo Zirconia (Talla 7)', peso: 3.5, cantidadSolicitada: 2, cantidadDisponible: 2, estado: 'Disponible' },
-        { id: 2, productoId: 102, nombre: 'Cadena Escalera (50 cm)', peso: 12.0, cantidadSolicitada: 1, cantidadDisponible: 0, estado: 'Agotado' }
-      ]
-    },
-    {
-      id: 1043,
-      cliente: 'Marta Gómez',
-      tarifaG: 33,
-      estado: 'Por confirmar cambios',
-      fecha: '2026-09-23',
-      items: [
-        { id: 3, productoId: 101, nombre: 'Anillo Zirconia (Talla 6)', peso: 3.2, cantidadSolicitada: 5, cantidadDisponible: 3, estado: 'Disponible' }
-      ]
+  const [pedidos, setPedidos] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardados = localStorage.getItem('ag47_pedidos_admin');
+      if (guardados) {
+        try { return JSON.parse(guardados); } catch(e) {}
+      }
     }
-  ]);
+    return [
+      {
+        id: 1042,
+        cliente: 'María López',
+        tarifaG: 36,
+        estado: 'Pendiente de revisar',
+        fecha: '2026-09-24',
+        items: [
+          { id: 1, productoId: 101, nombre: 'Anillo Zirconia (Talla 7)', peso: 3.5, cantidadSolicitada: 2, cantidadDisponible: 2, estado: 'Disponible' },
+          { id: 2, productoId: 102, nombre: 'Cadena Escalera (50 cm)', peso: 12.0, cantidadSolicitada: 1, cantidadDisponible: 0, estado: 'Agotado' }
+        ]
+      },
+      {
+        id: 1043,
+        cliente: 'Marta Gómez',
+        tarifaG: 33,
+        estado: 'Por confirmar cambios',
+        fecha: '2026-09-23',
+        items: [
+          { id: 3, productoId: 101, nombre: 'Anillo Zirconia (Talla 6)', peso: 3.2, cantidadSolicitada: 5, cantidadDisponible: 3, estado: 'Disponible' }
+        ]
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidos));
+  }, [pedidos]);
 
   const [pedidoDetalleModal, setPedidoDetalleModal] = useState<any>(null);
 
@@ -921,19 +952,182 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* MARCA Y ESTILOS */}
+        {/* MARCA, ESTILOS, TEXTOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" */}
         {seccion === 'portada' && (
-          <div className="space-y-6 max-w-4xl">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos y Paletas de Colores</h2>
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6 text-xs">
+          <div className="space-y-6 max-w-4xl text-xs">
+            <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos, Estilos, Direcciones, Teléfonos y Redes</h2>
+            <p className="text-slate-400">Personaliza la apariencia, el contenido de la tienda y la información de contacto oficial.</p>
+            
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
+              
+              {/* TÍTULOS Y TEXTOS */}
               <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️ Logo y Banner</h3>
-                <div>
-                  <label className="font-bold block mb-1 text-slate-300">Título Principal:</label>
-                  <input type="text" value={portada.titulo} onChange={(e) => setPortada({ ...portada, titulo: e.target.value })} className="w-full p-2 bg-slate-950 border border-slate-800 rounded text-white" />
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📝 Textos Principales de Portada</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Título Principal:</label>
+                    <input type="text" value={portada.titulo} onChange={(e) => setPortada({ ...portada, titulo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Subtítulo / Especial:</label>
+                    <input type="text" value={portada.subtitulo} onChange={(e) => setPortada({ ...portada, subtitulo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white" />
+                  </div>
                 </div>
               </div>
-              <button onClick={() => alert('Diseño de marca guardado.')} className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded uppercase text-xs">Guardar Cambios</button>
+
+              {/* SECCIÓN NOSOTROS */}
+              <div className="space-y-3">
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🏢 Edición Sección "Nosotros"</h3>
+                <div>
+                  <label className="font-bold block mb-1 text-slate-300">Texto Institucional / Quiénes Somos:</label>
+                  <textarea 
+                    rows={4} 
+                    value={portada.nosotrosTexto} 
+                    onChange={(e) => setPortada({ ...portada, nosotrosTexto: e.target.value })} 
+                    className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* LOGO Y BANNER */}
+              <div className="space-y-3">
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️ URLs de Logo e Imagen de Banner</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">URL del Logo:</label>
+                    <input type="text" value={portada.logoUrl} onChange={(e) => setPortada({ ...portada, logoUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">URL Imagen Banner:</label>
+                    <input type="text" value={portada.bannerUrl} onChange={(e) => setPortada({ ...portada, bannerUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ESTILOS Y TIPOGRAFÍA */}
+              <div className="space-y-3">
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🎨 Estilo de Letra y Paleta de Colores</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Estilo de Tipografía:</label>
+                    <select value={portada.fuenteEstilo} onChange={(e) => setPortada({ ...portada, fuenteEstilo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-bold">
+                      <option value="font-sans">Moderna (Sans)</option>
+                      <option value="font-serif">Elegante / Joyería (Serif)</option>
+                      <option value="font-mono">Técnica (Monospace)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Color Principal Web:</label>
+                    <input type="color" value={portada.colorWebPrincipal} onChange={(e) => setPortada({ ...portada, colorWebPrincipal: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Color Fondo Web:</label>
+                    <input type="color" value={portada.colorWebFondo} onChange={(e) => setPortada({ ...portada, colorWebFondo: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Color Texto Web:</label>
+                    <input type="color" value={portada.colorWebTexto} onChange={(e) => setPortada({ ...portada, colorWebTexto: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
+                  </div>
+                </div>
+              </div>
+
+              {/* MÚLTIPLES TELÉFONOS */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h3 className="font-bold uppercase text-amber-400">📞 Números de Teléfono (Múltiples)</h3>
+                  <button type="button" onClick={() => setPortada({ ...portada, telefonos: [...portada.telefonos, ''] })} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Teléfono</button>
+                </div>
+                <div className="space-y-2">
+                  {portada.telefonos.map((tel: string, idx: number) => (
+                    <div key={idx} className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={tel} 
+                        onChange={(e) => {
+                          const nuevosTels = [...portada.telefonos];
+                          nuevosTels[idx] = e.target.value;
+                          setPortada({ ...portada, telefonos: nuevosTels });
+                        }} 
+                        className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-white font-mono" 
+                        placeholder="+502 0000-0000"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const nuevosTels = portada.telefonos.filter((_: any, i: number) => i !== idx);
+                          setPortada({ ...portada, telefonos: nuevosTels });
+                        }} 
+                        className="bg-rose-600/20 text-rose-400 px-3 py-1 rounded font-bold hover:bg-rose-600 hover:text-white transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* MÚLTIPLES DIRECCIONES */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <h3 className="font-bold uppercase text-amber-400">📍 Direcciones Físicas / Sucursales</h3>
+                  <button type="button" onClick={() => setPortada({ ...portada, direcciones: [...portada.direcciones, ''] })} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Dirección</button>
+                </div>
+                <div className="space-y-2">
+                  {portada.direcciones.map((dir: string, idx: number) => (
+                    <div key={idx} className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={dir} 
+                        onChange={(e) => {
+                          const nuevasDirs = [...portada.direcciones];
+                          nuevasDirs[idx] = e.target.value;
+                          setPortada({ ...portada, direcciones: nuevasDirs });
+                        }} 
+                        className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-white" 
+                        placeholder="Ej. Zona 10, Ciudad de Guatemala"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const nuevasDirs = portada.direcciones.filter((_: any, i: number) => i !== idx);
+                          setPortada({ ...portada, direcciones: nuevasDirs });
+                        }} 
+                        className="bg-rose-600/20 text-rose-400 px-3 py-1 rounded font-bold hover:bg-rose-600 hover:text-white transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* REDES SOCIALES */}
+              <div className="space-y-3">
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🌐 Enlaces de Redes Sociales</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Facebook URL:</label>
+                    <input type="text" value={portada.redesSociales.facebook} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, facebook: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">Instagram URL:</label>
+                    <input type="text" value={portada.redesSociales.instagram} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, instagram: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">TikTok URL:</label>
+                    <input type="text" value={portada.redesSociales.tiktok} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, tiktok: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
+                  </div>
+                  <div>
+                    <label className="font-bold block mb-1 text-slate-300">WhatsApp Enlace Directo:</label>
+                    <input type="text" value={portada.redesSociales.whatsapp} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, whatsapp: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={guardarConfiguracionPortada} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-wider shadow transition">
+                💾 Guardar Configuración General de la Marca
+              </button>
+
             </div>
           </div>
         )}

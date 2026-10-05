@@ -1,1214 +1,1291 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 
-export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
+export default function TiendaPublica() {
+  // ESTADO DE CONFIGURACIÓN DE PORTADA Y MARCA (Sincronizado con Admin vía localStorage)
+  const [configPortada, setConfigPortada] = useState({
+    logoUrl: 'AG47',
+    titulo: 'Colección Mayorista y Minorista',
+    subtitulo: 'Especial de Temporada - Joyería en Plata 925',
+    bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
+    fuenteEstilo: 'font-sans',
+    colorWebPrincipal: '#f59e0b',
+    colorWebFondo: '#faf7f2',
+    colorWebTexto: '#18181b',
+    direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
+    telefonos: ['+502 5555-1234'],
+    redesSociales: {
+      facebook: 'https://facebook.com/ag47joyeria',
+      instagram: 'https://instagram.com/ag47joyeria',
+      tiktok: 'https://tiktok.com/@ag47joyeria',
+      whatsapp: 'https://wa.me/50255551234'
+    },
+    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
+  });
 
   useEffect(() => {
-    const auth = localStorage.getItem('admin_auth');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === 'Yaosalazar1986@') {
-      localStorage.setItem('admin_auth', 'true');
-      setIsAuthenticated(true);
-      setError(false);
-    } else {
-      setError(true);
-    }
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-amber-50">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-xl shadow-lg w-96 border border-amber-100">
-          <h2 className="text-2xl font-bold mb-6 text-center text-amber-900">Panel Admin AG47</h2>
-          {error && <p className="text-red-500 text-sm mb-4 text-center font-medium">Contraseña incorrecta</p>}
-          <input 
-            type="password" 
-            placeholder="Introduce tu contraseña" 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-amber-600"
-            required
-          />
-          <button 
-            type="submit" 
-            className="w-full bg-amber-700 text-white p-3 rounded-lg font-semibold hover:bg-amber-800 transition"
-          >
-            Ingresar
-          </button>
-        </form>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-xs">
-        <span className="text-slate-400">Sesión de Administrador Segura</span>
-        <button 
-          onClick={() => {
-            localStorage.removeItem('admin_auth');
-            setIsAuthenticated(false);
-          }}
-          className="bg-red-600 text-white px-3 py-1.5 rounded font-bold hover:bg-red-500 transition"
-        >
-          Cerrar Sesión
-        </button>
-      </div>
-      <AdminDashboard />
-    </div>
-  );
-}
-
-function AdminDashboard() {
-  const [seccion, setSeccion] = useState('pedidos');
-
-  // Categorías fijas del catálogo
-  const categoriasBase = ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
-
-  // ID del cliente desplegado en la sección B2B
-  const [clienteDesplegadoId, setClienteDesplegadoId] = useState<number | null>(1);
-
-  // CREDENCIALES DEL ADMINISTRADOR PRINCIPAL
-  const [adminCredenciales, setAdminCredenciales] = useState({
-    usuario: 'admin',
-    password: '1234'
-  });
-
-  const [formAdminCred, setFormAdminCred] = useState({
-    usuario: adminCredenciales.usuario,
-    password: adminCredenciales.password
-  });
-
-  // BANCO DE IMÁGENES SIMULADO DE GOOGLE DRIVE / ARCHIVOS CLOUD (ESTILO GALERÍA REFERENCIA)
-  const [galeriaDrive] = useState([
-    { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
-    { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' },
-    { id: 'img_3', url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800', nombre: '2.8_T7_9.5.jpg' },
-    { id: 'img_4', url: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800', nombre: '2.5_T8.5.jpg' },
-    { id: 'img_5', url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800', nombre: 'Aretes_Pave.jpg' },
-    { id: 'img_6', url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800', nombre: 'Dije_Medalla.jpg' }
-  ]);
-
-  // ESTADO MODAL SELECTOR DE DRIVE / GALERÍA
-  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
-  const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
-  const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
-
-  // 1. VENDEDORES / TRABAJADORES CON USUARIO Y CONTRASEÑA
-  const [vendedores, setVendedores] = useState([
-    { id: 1, nombre: 'Marta Gómez', telefono: '4444-0101', usuario: 'marta', password: 'marta2026', ventasRealizadas: 14, totalVendido: 12450 },
-    { id: 2, nombre: 'Juan Pérez', telefono: '4444-0202', usuario: 'juan', password: 'juan2026', ventasRealizadas: 8, totalVendido: 7800 },
-  ]);
-  const [nuevoVendedor, setNuevoVendedor] = useState({ nombre: '', telefono: '', usuario: '', password: '' });
-
-  // 2. CLIENTES MAYORISTAS CON TARIFAS, LÍNEA DE CRÉDITO Y CUENTAS POR COBRAR
-  const [mayoristas, setMayoristas] = useState([
-    { 
-      id: 1, 
-      nombre: 'María López', 
-      telefono: '5555-0101', 
-      email: 'maria@ejemplo.com',
-      direccion: 'Zona 10, Guatemala',
-      nit: '1234567-8',
-      estado: 'Autorizada', 
-      vendedorAsignado: 'Marta Gómez',
-      comprasContado: 9,
-      comprasCredito: 3,
-      creditosCancelados: 2,
-      tieneCredito: true,
-      limiteCredito: 5000,
-      diasCredito: 30,
-      saldoDeuda: 1200,
-      preciosGramoPorCategoria: { Pulseras: 36, Anillos: 38, Cadenas: 35, Aretes: 40, Gargantillas: 37, Dijes: 39 }
-    },
-    { 
-      id: 2, 
-      nombre: 'Marta Gómez', 
-      telefono: '5555-0202', 
-      email: 'marta@ejemplo.com',
-      direccion: 'Zona 1, Quetzaltenango',
-      nit: '8765432-1',
-      estado: 'Autorizada', 
-      vendedorAsignado: 'Marta Gómez',
-      comprasContado: 5,
-      comprasCredito: 0,
-      creditosCancelados: 0,
-      tieneCredito: false,
-      limiteCredito: 0,
-      diasCredito: 0,
-      saldoDeuda: 0,
-      preciosGramoPorCategoria: { Pulseras: 33, Anillos: 35, Cadenas: 32, Aretes: 36, Gargantillas: 34, Dijes: 35 }
-    },
-    { 
-      id: 3, 
-      nombre: 'Carlos Pérez', 
-      telefono: '5555-0303', 
-      email: 'carlos@ejemplo.com',
-      direccion: 'Zona 11, Guatemala',
-      nit: '5544332-1',
-      estado: 'Pendiente', 
-      vendedorAsignado: 'Juan Pérez',
-      comprasContado: 0,
-      comprasCredito: 0,
-      creditosCancelados: 0,
-      tieneCredito: false,
-      limiteCredito: 0,
-      diasCredito: 0,
-      saldoDeuda: 0,
-      preciosGramoPorCategoria: { Pulseras: 35, Anillos: 37, Cadenas: 34, Aretes: 38, Gargantillas: 36, Dijes: 37 }
-    },
-  ]);
-
-  const [nuevoCliente, setNuevoCliente] = useState({ 
-    nombre: '', 
-    telefono: '', 
-    tarifaG: 36,
-    vendedorAsignado: 'Marta Gómez',
-    tieneCredito: false,
-    limiteCredito: 0,
-    diasCredito: 15
-  });
-
-  const [montoAbonoInput, setMontoAbonoInput] = useState<Record<number, number>>({});
-
-  // 3. PRODUCTOS E INVENTARIO CON CÓDIGO DE BARRAS, TALLAS Y MEDIDAS
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
-  const [productos, setProductos] = useState([
-    { 
-      id: 101, 
-      sku: 'ANI-012', 
-      barcode: '740100200301',
-      nombre: 'Anillo Zirconia Garra', 
-      categoria: 'Anillos', 
-      precioMinorista: 220, 
-      fotos: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
-      variantes: [
-        { id: 'v1', medida: 'Talla 6', peso: 3.2, stock: 5 },
-        { id: 'v2', medida: 'Talla 7', peso: 3.5, stock: 8 },
-        { id: 'v3', medida: 'Talla 8', peso: 3.8, stock: 2 },
-      ]
-    },
-    { 
-      id: 102, 
-      sku: 'CAD-005', 
-      barcode: '740100200302',
-      nombre: 'Cadena Escalera Plata 925', 
-      categoria: 'Cadenas', 
-      precioMinorista: 600, 
-      fotos: ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'],
-      variantes: [
-        { id: 'v4', medida: '45 cm', peso: 10.5, stock: 4 },
-        { id: 'v5', medida: '50 cm', peso: 12.0, stock: 6 },
-      ]
-    },
-    { 
-      id: 103, 
-      sku: 'PUL-088', 
-      barcode: '740100200303',
-      nombre: 'Pulsera Tejido Italiano', 
-      categoria: 'Pulseras', 
-      precioMinorista: 450, 
-      fotos: ['https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'],
-      variantes: [
-        { id: 'v6', medida: '18 cm', peso: 8.5, stock: 6 }
-      ]
-    }
-  ]);
-
-  const [nuevoProd, setNuevoProd] = useState({
-    sku: '', 
-    barcode: '',
-    nombre: '', 
-    categoria: 'Anillos', 
-    precioMinorista: 0, 
-    fotos: [] as string[],
-    variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
-  });
-
-  // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS"
-  const [portada, setPortada] = useState(() => {
     if (typeof window !== 'undefined') {
       const guardado = localStorage.getItem('config_portada_ag47');
       if (guardado) {
-        try { return JSON.parse(guardado); } catch(e) {}
+        try { setConfigPortada(JSON.parse(guardado)); } catch(e) {}
       }
     }
-    return {
-      logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
-      titulo: 'Colección Mayorista y Minorista',
-      subtitulo: 'Especial de Temporada - Joyería en Plata 925',
-      bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
-      fuenteEstilo: 'font-sans',
-      colorWebPrincipal: '#f59e0b',
-      colorWebFondo: '#020617',
-      colorWebTexto: '#ffffff',
-      direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala', 'Centro Comercial Pradera Zona 4, Quetzaltenango'],
-      telefonos: ['+502 5555-1234', '+502 4444-5678'],
-      redesSociales: {
-        facebook: 'https://facebook.com/ag47joyeria',
-        instagram: 'https://instagram.com/ag47joyeria',
-        tiktok: 'https://tiktok.com/@ag47joyeria',
-        whatsapp: 'https://wa.me/50255551234'
-      },
-      nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
-    };
-  });
+  }, []);
 
-  const guardarConfiguracionPortada = () => {
-    localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
-    alert('¡Configuración de marca, textos y estilos guardada con éxito y sincronizada con la web!');
-  };
+  const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
 
-  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS (SINCRONIZADOS CON LOCALSTORAGE)
-  const [filtroEstadoPedido, setFiltroEstadoPedido] = useState('Todos');
-  const [pedidos, setPedidos] = useState(() => {
+  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial' | 'nosotros'
+  const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial' | 'nosotros'>('inicio');
+  
+  // ESTADO DE SESIÓN MAYORISTA
+  const [esMayorista, setEsMayorista] = useState(false);
+  const [clienteMayoristaActivo, setClienteMayoristaActivo] = useState<any>(null);
+
+  const [carrito, setCarrito] = useState<any[]>([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
+  const [productoSeleccionadoModal, setProductoSeleccionadoModal] = useState<any>(null);
+  const [fotoActivaIndex, setFotoActivaIndex] = useState(0);
+  const [varianteElegida, setVarianteElegida] = useState<any>(null);
+  const [cantidadModal, setCantidadModal] = useState<number>(1);
+
+  // HISTORIAL DE PEDIDOS DEL CLIENTE (Sincronizado con localStorage)
+  const [misPedidos, setMisPedidos] = useState<any[]>([]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const guardados = localStorage.getItem('ag47_pedidos_admin');
       if (guardados) {
-        try { return JSON.parse(guardados); } catch(e) {}
+        try { setMisPedidos(JSON.parse(guardados)); } catch(e) {}
       }
     }
-    return [
-      {
-        id: 1042,
-        cliente: 'María López',
-        tarifaG: 36,
-        estado: 'Pendiente de revisar',
-        fecha: '2026-09-24',
-        items: [
-          { id: 1, productoId: 101, nombre: 'Anillo Zirconia (Talla 7)', peso: 3.5, cantidadSolicitada: 2, cantidadDisponible: 2, estado: 'Disponible' },
-          { id: 2, productoId: 102, nombre: 'Cadena Escalera (50 cm)', peso: 12.0, cantidadSolicitada: 1, cantidadDisponible: 0, estado: 'Agotado' }
-        ]
-      },
-      {
-        id: 1043,
-        cliente: 'Marta Gómez',
-        tarifaG: 33,
-        estado: 'Por confirmar cambios',
-        fecha: '2026-09-23',
-        items: [
-          { id: 3, productoId: 101, nombre: 'Anillo Zirconia (Talla 6)', peso: 3.2, cantidadSolicitada: 5, cantidadDisponible: 3, estado: 'Disponible' }
-        ]
-      }
-    ];
-  });
+  }, [vistaActual]);
 
-  useEffect(() => {
-    localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidos));
-  }, [pedidos]);
+  // DATOS DEL FORMULARIO LOGIN MAYORISTA
+  const [loginUsuario, setLoginUsuario] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginRecordar, setLoginRecordar] = useState(false);
+  const [cargandoLogin, setCargandoLogin] = useState(false);
 
-  const [pedidoDetalleModal, setPedidoDetalleModal] = useState<any>(null);
-
-  // 6. CÓDIGOS DE DESCUENTO CON SELECCIÓN DE PRODUCTO POR CÓDIGO DE BARRAS E IMAGEN
-  const [cupones, setCupones] = useState([
+  // BASE DE DATOS DE MAYORISTAS
+  const [listaMayoristas, setListaMayoristas] = useState([
     { 
       id: 1, 
-      codigo: 'PLATA10', 
-      tipo: 'porcentaje', 
-      valor: 10, 
-      usoLimite: 50, 
-      usosActuales: 12, 
-      activo: true,
-      aplicaA: 'especificos',
-      productosIds: [101]
+      nombre: 'María López', 
+      telefono: '5555-1122', 
+      correo: 'maria@eldiamante.com', 
+      tipoCliente: 'Tienda Física', 
+      estado: 'Autorizado',
+      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39, PulserasDijes: 36 }
     },
     { 
       id: 2, 
-      codigo: 'REGALO50', 
-      tipo: 'fijo', 
-      valor: 50, 
-      usoLimite: 20, 
-      usosActuales: 5, 
-      activo: true,
-      aplicaA: 'todos',
-      productosIds: []
-    },
+      nombre: 'Carlos Pérez', 
+      telefono: '5555-3344', 
+      correo: 'carlos@perez.com', 
+      tipoCliente: 'Revendedor / Venta Ruteada', 
+      estado: 'Pendiente',
+      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35, PulserasDijes: 33 }
+    }
   ]);
 
-  const [nuevoCupon, setNuevoCupon] = useState({
-    codigo: '',
-    tipo: 'porcentaje',
-    valor: 0,
-    usoLimite: 10,
-    aplicaA: 'todos',
-    productosIds: [] as number[]
+  // DATOS DEL FORMULARIO REGISTRO MAYORISTA
+  const [datosRegistroMayorista, setDatosRegistroMayorista] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    tipoCliente: 'Particular',
+    requiereEnvio: false,
+    direccion: ''
+  });
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
+
+  // DATOS DEL CLIENTE PARA ENVÍO Y PAGO
+  const [datosEnvio, setDatosEnvio] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    direccion: '',
+    departamento: 'Guatemala',
+    metodoEntrega: 'envio',
+    metodoPago: 'contraentrega',
+    notaPedido: ''
   });
 
-  const [busquedaProductoCupon, setBusquedaProductoCupon] = useState('');
+  const [medioConfirmacion, setMedioConfirmacion] = useState<'whatsapp' | 'correo'>('whatsapp');
+  const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
 
-  const [mensajePromo, setMensajePromo] = useState({
-    asunto: '¡Tienes un código de descuento especial en AG47!',
-    contenido: 'Hola {{nombre}}, queremos regalarte un cupón exclusivo para tu próxima compra en plata 925.',
-    codigoAdjunto: 'PLATA10',
-    canalWhatsapp: true,
-    canalEmail: true,
-    destinatarioGrupo: 'todos'
-  });
+  // LISTADO DE CATEGORÍAS
+  const [todasLasCategorias] = useState([
+    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
+  ]);
 
-  const [reportes] = useState({
-    ventasContado: 26050,
-    creditosCanceladosMonto: 11200,
-    creditosPendientesMonto: 1200,
-    clientesDeudores: 1,
-    carritosAbandonados: 5,
-    montoCarritosAbandonados: 2850,
-    pedidosWebMayor: 18,
-    pedidosWebMenor: 24,
-    pedidosTiendaPos: 32
-  });
-
-  // EXPORTAR CATÁLOGO A FORMATO CSV (INCLUYENDO ENLACES SELECCIONADOS DEL DRIVE)
-  const exportarCatalogoCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,PrecioMinorista,ImagenURL_1,ImagenURL_2\n";
-    
-    productos.forEach(p => {
-      const img1 = p.fotos[0] || '';
-      const img2 = p.fotos[1] || '';
-      const row = `"${p.sku}","${p.barcode || ''}","${p.nombre}","${p.categoria}",${p.precioMinorista},"${img1}","${img2}"`;
-      csvContent += row + "\r\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `catalogo_joyeria_ag47_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // FUNCIONES DE TRABAJADORES / VENDEDORES
-  const agregarVendedor = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoVendedor.nombre || !nuevoVendedor.usuario || !nuevoVendedor.password) {
-      return alert('Completa el nombre, usuario y contraseña del trabajador.');
+  // CATÁLOGO DE PRODUCTOS CON PESO
+  const [productos] = useState([
+    {
+      id: 101,
+      sku: '24665-38850',
+      nombre: 'Anillo de Zircones Solitario Garra',
+      categoria: 'Anillos',
+      precioMinorista: 220,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Anillo de Zircones pavé de alta refracción. Sortija estilo clásico.',
+      fotos: [
+        'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800',
+        'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800'
+      ],
+      variantes: [
+        { id: 'v1', medida: '5', peso: 2.3, stock: 5 },
+        { id: 'v2', medida: '6', peso: 2.5, stock: 8 },
+        { id: 'v3', medida: '7', peso: 2.7, stock: 4 }
+      ]
+    },
+    {
+      id: 102,
+      sku: 'CAD-005',
+      nombre: 'Gargantilla Escalera Plata 925',
+      categoria: 'Gargantillas',
+      precioMinorista: 600,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Gargantilla de tejido italiano fino con acabado de espejo en plata rodinada.',
+      fotos: [
+        'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'
+      ],
+      variantes: [
+        { id: 'v4', medida: '40 cm', peso: 10.2, stock: 2 },
+        { id: 'v5', medida: '45 cm', peso: 11.5, stock: 4 }
+      ]
+    },
+    {
+      id: 103,
+      sku: 'PUL-088',
+      nombre: 'Pulsera Tejido Italiano Dije Corazón',
+      categoria: 'Pulseras',
+      precioMinorista: 450,
+      esNuevo: false,
+      material: 'Plata 925',
+      descripcion: 'Pulsera elegante en plata 925 con broche marinero reforzado y dije colgante.',
+      fotos: [
+        'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'
+      ],
+      variantes: [
+        { id: 'v6', medida: '18 cm', peso: 7.8, stock: 6 },
+        { id: 'v7', medida: '20 cm', peso: 8.4, stock: 3 }
+      ]
+    },
+    {
+      id: 104,
+      sku: 'ARE-021',
+      nombre: 'Aretes Arrancadas Zirconias Pavé',
+      categoria: 'Aretes',
+      precioMinorista: 310,
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: 'Arrancadas clásicas pavé con incrustaciones de micro zirconias suizas.',
+      fotos: [
+        'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800'
+      ],
+      variantes: [
+        { id: 'v8', medida: 'Par Estándar', peso: 4.1, stock: 10 }
+      ]
     }
-    setVendedores([
-      ...vendedores,
-      { ...nuevoVendedor, id: Date.now(), ventasRealizadas: 0, totalVendido: 0 }
-    ]);
-    setNuevoVendedor({ nombre: '', telefono: '', usuario: '', password: '' });
-    alert('Trabajador registrado con éxito.');
-  };
+  ]);
 
-  const actualizarCredencialesVendedor = (id: number, campo: string, valor: string) => {
-    setVendedores(vendedores.map(v => v.id === id ? { ...v, [campo]: valor } : v));
-  };
-
-  const guardarCredencialesAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formAdminCred.usuario || !formAdminCred.password) {
-      return alert('El usuario y la contraseña de administrador no pueden estar vacíos.');
+  // VERIFICA SI UN PRODUCTO O VARIANTE YA ESTÁ EN EL CARRITO
+  const estaEnCarrito = (productoId: number, varianteId?: string) => {
+    if (varianteId) {
+      return carrito.some(item => item.id === `${productoId}-${varianteId}`);
     }
-    setAdminCredenciales(formAdminCred);
-    alert('Credenciales de Administrador actualizadas correctamente.');
+    return carrito.some(item => item.productoId === productoId);
   };
 
-  const toggleSeleccionProductoCupon = (prodId: number) => {
-    if (nuevoCupon.productosIds.includes(prodId)) {
-      setNuevoCupon({
-        ...nuevoCupon,
-        productosIds: nuevoCupon.productosIds.filter(id => id !== prodId)
-      });
-    } else {
-      setNuevoCupon({
-        ...nuevoCupon,
-        productosIds: [...nuevoCupon.productosIds, prodId]
-      });
+  // CÁLCULO DE PRECIO AUTOMÁTICO SEGÚN TIPO DE USUARIO
+  const obtenerPrecioCalculado = (producto: any, variante: any) => {
+    if (esMayorista && clienteMayoristaActivo) {
+      const tarifaGramo = clienteMayoristaActivo.tarifasPorGramo[producto.categoria] || 36;
+      const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
+      return Number((pesoUnitario * tarifaGramo).toFixed(2));
+    }
+    return producto.precioMinorista;
+  };
+
+  const irACategoriaEspecifica = (nombreCat: string) => {
+    setCategoriaFiltro(nombreCat);
+    setVistaActual('catalogo');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const abrirModalDetalle = (prod: any) => {
+    setProductoSeleccionadoModal(prod);
+    setFotoActivaIndex(0);
+    setVarianteElegida(prod.variantes[0] || null);
+    setCantidadModal(1);
+  };
+
+  const verProductoDesdeCarrito = (productoId: number) => {
+    const productoEncontrado = productos.find(p => p.id === productoId);
+    if (productoEncontrado) {
+      abrirModalDetalle(productoEncontrado);
     }
   };
 
-  const crearCupon = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoCupon.codigo) return;
-    if (nuevoCupon.aplicaA === 'especificos' && nuevoCupon.productosIds.length === 0) {
-      return alert('Por favor selecciona al menos un producto.');
-    }
+  const agregarAlCarritoSilencioso = () => {
+    if (!productoSeleccionadoModal || !varianteElegida) return;
 
-    setCupones([
-      ...cupones,
-      {
-        ...nuevoCupon,
-        id: Date.now(),
-        codigo: nuevoCupon.codigo.toUpperCase().trim(),
-        valor: Number(nuevoCupon.valor),
-        usoLimite: Number(nuevoCupon.usoLimite),
-        usosActuales: 0,
-        activo: true
-      }
-    ]);
-    setNuevoCupon({ codigo: '', tipo: 'porcentaje', valor: 0, usoLimite: 10, aplicaA: 'todos', productosIds: [] });
-    setBusquedaProductoCupon('');
-    alert('Código de descuento activado correctamente.');
-  };
+    const precioCalculado = obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida);
 
-  const cambiarEstadoCupon = (id: number) => {
-    setCupones(cupones.map(c => c.id === id ? { ...c, activo: !c.activo } : c));
-  };
-
-  const enviarPromocionMensaje = (e: React.FormEvent) => {
-    e.preventDefault();
-    let canales = [];
-    if (mensajePromo.canalWhatsapp) canales.push('WhatsApp');
-    if (mensajePromo.canalEmail) canales.push('Correo Electrónico');
-
-    alert(`Promoción y código "${mensajePromo.codigoAdjunto}" enviados vía ${canales.join(' y ')}.`);
-  };
-
-  const productosFiltradosParaCupon = productos.filter(p => 
-    p.nombre.toLowerCase().includes(busquedaProductoCupon.toLowerCase()) ||
-    p.sku.toLowerCase().includes(busquedaProductoCupon.toLowerCase()) ||
-    (p.barcode && p.barcode.includes(busquedaProductoCupon))
-  );
-
-  const agregarCliente = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nuevoCliente.nombre) return;
-    const base = Number(nuevoCliente.tarifaG);
-    const preciosBase: Record<string, number> = {};
-    categoriasBase.forEach(c => preciosBase[c] = base);
-
-    const nuevoObj = {
-      id: Date.now(),
-      nombre: nuevoCliente.nombre,
-      telefono: nuevoCliente.telefono,
-      email: '',
-      direccion: '',
-      nit: 'CF',
-      estado: 'Autorizada',
-      vendedorAsignado: nuevoCliente.vendedorAsignado,
-      comprasContado: 0,
-      comprasCredito: 0,
-      creditosCancelados: 0,
-      tieneCredito: nuevoCliente.tieneCredito,
-      limiteCredito: Number(nuevoCliente.limiteCredito),
-      diasCredito: Number(nuevoCliente.diasCredito),
-      saldoDeuda: 0,
-      preciosGramoPorCategoria: preciosBase
+    const itemEnCarrito = {
+      id: `${productoSeleccionadoModal.id}-${varianteElegida.id}`,
+      productoId: productoSeleccionadoModal.id,
+      sku: productoSeleccionadoModal.sku,
+      nombre: productoSeleccionadoModal.nombre,
+      medida: varianteElegida.medida,
+      pesoUnitario: varianteElegida.peso,
+      precio: precioCalculado,
+      foto: productoSeleccionadoModal.fotos[0],
+      cantidad: cantidadModal
     };
 
-    setMayoristas([...mayoristas, nuevoObj]);
-    setNuevoCliente({ 
-      nombre: '', 
-      telefono: '', 
-      tarifaG: 36, 
-      vendedorAsignado: vendedores[0]?.nombre || 'Marta Gómez',
-      tieneCredito: false, 
-      limiteCredito: 0, 
-      diasCredito: 15 
-    });
-    setClienteDesplegadoId(nuevoObj.id);
-  };
-
-  const cambiarEstado = (id: number, estado: string) => {
-    setMayoristas(mayoristas.map(m => m.id === id ? { ...m, estado } : m));
-  };
-
-  const cambiarPrecioCategoria = (clienteId: number, categoria: string, nuevoPrecio: number) => {
-    setMayoristas(mayoristas.map(m => {
-      if (m.id === clienteId) {
-        return {
-          ...m,
-          preciosGramoPorCategoria: {
-            ...m.preciosGramoPorCategoria,
-            [categoria]: nuevoPrecio
-          }
-        };
-      }
-      return m;
-    }));
-  };
-
-  const actualizarCreditoCliente = (clienteId: number, campo: string, valor: any) => {
-    setMayoristas(mayoristas.map(m => m.id === clienteId ? { ...m, [campo]: valor } : m));
-  };
-
-  const registrarAbonoDeuda = (clienteId: number) => {
-    const abono = montoAbonoInput[clienteId] || 0;
-    if (abono <= 0) return alert('Ingresa un monto de abono válido.');
-
-    setMayoristas(mayoristas.map(m => {
-      if (m.id === clienteId) {
-        const nuevaDeuda = Math.max(0, m.saldoDeuda - abono);
-        return { ...m, saldoDeuda: nuevaDeuda, creditosCancelados: m.saldoDeuda - abono <= 0 ? m.creditosCancelados + 1 : m.creditosCancelados };
-      }
-      return m;
-    }));
-
-    setMontoAbonoInput({ ...montoAbonoInput, [clienteId]: 0 });
-    alert(`Abono de Q${abono} registrado con éxito.`);
-  };
-
-  const agregarCampoVariante = () => {
-    setNuevoProd({
-      ...nuevoProd,
-      variantes: [...nuevoProd.variantes, { medida: '', peso: 0, stock: 0 }]
-    });
-  };
-
-  const actualizarVarianteForm = (index: number, campo: string, valor: any) => {
-    const nuevasVar = [...nuevoProd.variantes];
-    nuevasVar[index] = { ...nuevasVar[index], [campo]: valor };
-    setNuevoProd({ ...nuevoProd, variantes: nuevasVar });
-  };
-
-  const agregarProducto = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (nuevoProd.fotos.length === 0) {
-      return alert('Por favor selecciona al menos una imagen de la galería de Google Drive.');
+    const existe = carrito.find(item => item.id === itemEnCarrito.id);
+    if (existe) {
+      setCarrito(carrito.map(item => item.id === itemEnCarrito.id ? { ...item, cantidad: item.cantidad + cantidadModal } : item));
+    } else {
+      setCarrito([...carrito, itemEnCarrito]);
     }
 
-    setProductos([
-      ...productos, 
-      { 
-        ...nuevoProd, 
-        id: Date.now(), 
-        precioMinorista: Number(nuevoProd.precioMinorista) 
+    setProductoSeleccionadoModal(null);
+  };
+
+  const modificarCantidad = (id: string, cambio: number) => {
+    setCarrito(carrito.map(item => {
+      if (item.id === id) {
+        const nuevaCant = item.cantidad + cambio;
+        return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : item;
       }
-    ]);
-    
-    setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
-    alert('Joya guardada y sincronizada correctamente.');
+      return item;
+    }));
   };
 
-  const productosFiltrados = categoriaSeleccionada === 'Todas' 
-    ? productos 
-    : productos.filter(p => p.categoria === categoriaSeleccionada);
-
-  const cambiarEstadoPedidoDirecto = (pedidoId: number, nuevoEstado: string) => {
-    setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
+  const eliminarDelCarrito = (id: string) => {
+    setCarrito(carrito.filter(item => item.id !== id));
   };
 
-  const actualizarItemPedido = (itemId: number, campo: string, valor: any) => {
-    const itemsActualizados = pedidoDetalleModal.items.map((it: any) => {
-      if (it.id === itemId) return { ...it, [campo]: valor };
-      return it;
-    });
-    setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
+  const vaciarCarrito = () => {
+    if (confirm('¿Deseas vaciar todos los productos del carrito?')) {
+      setCarrito([]);
+    }
   };
 
-  const guardarRevisionPedido = () => {
-    setPedidos(pedidos.map(p => p.id === pedidoDetalleModal.id ? pedidoDetalleModal : p));
-    setPedidoDetalleModal(null);
-    alert('Pedido guardado con su nuevo estado.');
+  const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
+  const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+
+  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE
+  const procesarHacerPedido = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!datosEnvio.nombreCompleto || !datosEnvio.telefono) {
+      alert('Por favor ingresa al menos tu nombre y número de teléfono.');
+      return;
+    }
+
+    if (datosEnvio.metodoEntrega === 'envio' && !datosEnvio.direccion) {
+      alert('Por favor ingresa la dirección de entrega para tu pedido.');
+      return;
+    }
+
+    const numOrden = Math.floor(1000 + Math.random() * 9000);
+    setNumeroOrdenGenerado(numOrden.toString());
+
+    const nuevoPedidoWeb = {
+      id: numOrden,
+      cliente: datosEnvio.nombreCompleto,
+      telefono: datosEnvio.telefono,
+      tarifaG: esMayorista ? 36 : 35,
+      estado: 'Pendiente de revisar',
+      fecha: new Date().toISOString().slice(0, 10),
+      items: carrito.map((item, index) => ({
+        id: index + 1,
+        productoId: item.productoId,
+        nombre: `${item.nombre} (Talla: ${item.medida})`,
+        peso: item.pesoUnitario || 0,
+        cantidadSolicitada: item.cantidad,
+        cantidadDisponible: item.cantidad,
+        estado: 'Disponible'
+      }))
+    };
+
+    const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
+    const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
+    localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
+    setMisPedidos(pedidosActualizados);
+    setCarrito([]);
+
+    setVistaActual('confirmado');
   };
 
-  const pedidosFiltrados = filtroEstadoPedido === 'Todos'
-    ? pedidos
-    : pedidos.filter(p => p.estado === filtroEstadoPedido);
+  const enviarConfirmacionCliente = () => {
+    if (medioConfirmacion === 'whatsapp') {
+      let mensaje = `Hola AG47, mi nombre es *${datosEnvio.nombreCompleto}*.\n`;
+      mensaje += `Acabo de realizar el pedido *#${numeroOrdenGenerado}* en la página web.\n\n`;
+      mensaje += `Quedo a la espera de su confirmación de disponibilidad para proceder. ¡Muchas gracias!`;
+
+      const url = `https://wa.me/50255550101?text=${encodeURIComponent(mensaje)}`;
+      window.open(url, '_blank');
+    } else {
+      alert(`Se ha enviado la solicitud de confirmación de la orden #${numeroOrdenGenerado} al correo ${datosEnvio.correo || 'registrado'}.`);
+    }
+  };
+
+  // LOGIN MAYORISTA
+  const ejecutarLoginMayorista = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginUsuario) return alert('Por favor ingresa tu usuario.');
+
+    const usuarioEncontrado = listaMayoristas.find(m => m.correo.toLowerCase() === loginUsuario.toLowerCase() || m.nombre.toLowerCase() === loginUsuario.toLowerCase());
+
+    if (usuarioEncontrado && usuarioEncontrado.estado === 'Pendiente') {
+      return alert('Tu cuenta aún se encuentra PENDIENTE DE REVISIÓN.');
+    }
+
+    if (usuarioEncontrado && usuarioEncontrado.estado === 'Suspendido') {
+      return alert('Tu cuenta ha sido SUSPENDIDA. Contacta a soporte.');
+    }
+
+    setCargandoLogin(true);
+    setTimeout(() => {
+      setCargandoLogin(false);
+      setEsMayorista(true);
+      setClienteMayoristaActivo(usuarioEncontrado || listaMayoristas[0]);
+      setVistaActual('inicio');
+      alert(`¡Sesión iniciada correctamente! Se ha activado tu tarifario por gramo.`);
+    }, 1000);
+  };
+
+  const cerrarSesionMayorista = () => {
+    setEsMayorista(false);
+    setClienteMayoristaActivo(null);
+    setVistaActual('inicio');
+  };
+
+  const enviarRegistroMayorista = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!datosRegistroMayorista.nombreCompleto || !datosRegistroMayorista.telefono) {
+      alert('Por favor completa tu nombre y número de teléfono.');
+      return;
+    }
+
+    const nuevo = {
+      id: Date.now(),
+      nombre: datosRegistroMayorista.nombreCompleto,
+      telefono: datosRegistroMayorista.telefono,
+      correo: datosRegistroMayorista.correo || 'No proporcionado',
+      tipoCliente: datosRegistroMayorista.tipoCliente || 'Particular',
+      estado: 'Pendiente',
+      tarifasPorGramo: { Anillos: 36, Aretes: 36, Gargantillas: 36, Pulseras: 36, Cadenas: 36, 'Dijes & Medallas': 36 }
+    };
+
+    setListaMayoristas([...listaMayoristas, nuevo]);
+    setSolicitudEnviada(true);
+  };
+
+  const productosFiltrados = productos.filter(p => {
+    const coincideCategoria = categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro;
+    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.sku.toLowerCase().includes(busqueda.toLowerCase());
+    return coincideCategoria && coincideBusqueda;
+  });
+
+  const productosSimilares = productoSeleccionadoModal 
+    ? productos.filter(p => p.id !== productoSeleccionadoModal.id)
+    : [];
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+    <div className={`min-h-screen ${configPortada.fuenteEstilo} flex flex-col justify-between`} style={{ backgroundColor: configPortada.colorWebFondo, color: configPortada.colorWebTexto }}>
       
-      {/* MENÚ LATERAL */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 p-4 flex flex-col justify-between select-none">
-        <div>
-          <div className="flex items-center space-x-3 mb-8 px-2">
-            <div className="w-8 h-8 bg-amber-500 text-slate-950 font-bold rounded flex items-center justify-center font-serif">AG</div>
-            <div>
-              <h1 className="font-serif font-bold text-sm text-white">AG47 ADMIN</h1>
-              <p className="text-[10px] text-amber-400 font-mono">Control Unificado</p>
-            </div>
-          </div>
-
-          <nav className="space-y-1 text-xs font-semibold">
-            <button onClick={() => setSeccion('pedidos')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'pedidos' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>📦</span>
-              <span>Pedidos En Revisión</span>
+      <div>
+        {/* BARRA SUPERIOR DE AVISO */}
+        <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
+          <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
+          <div className="flex gap-3 items-center">
+            <button 
+              onClick={() => setVistaActual('historial')} 
+              className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
+            >
+              📦 Mis Pedidos ({misPedidos.length})
             </button>
-
-            <button onClick={() => setSeccion('promociones')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'promociones' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>🏷️</span>
-              <span>Promociones & Cupones</span>
-            </button>
-
-            <button onClick={() => setSeccion('mayoristas')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'mayoristas' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>👥</span>
-              <span>Clientes & Créditos B2B</span>
-            </button>
-
-            <button onClick={() => setSeccion('productos')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'productos' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>💎</span>
-              <span>Productos y Barcodes</span>
-            </button>
-
-            <button onClick={() => setSeccion('reportes')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'reportes' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>📊</span>
-              <span>Reportes & Analíticas</span>
-            </button>
-
-            <button onClick={() => setSeccion('vendedores')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'vendedores' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>👔</span>
-              <span>Vendedores & Métricas</span>
-            </button>
-
-            <button onClick={() => setSeccion('portada')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'portada' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
-              <span>🎨</span>
-              <span>Marca, Textos & Estilos</span>
-            </button>
-          </nav>
-        </div>
-
-        <div className="space-y-2">
-          <button onClick={exportarCatalogoCSV} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 rounded font-bold shadow transition">
-            📥 Exportar CSV con links Drive
-          </button>
-          <a href="/" className="block text-center bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-2 rounded font-bold">
-            ↗ Ver Tienda Pública
-          </a>
-        </div>
-      </aside>
-
-      {/* ÁREA PRINCIPAL */}
-      <main className="flex-1 overflow-y-auto p-8">
-        
-        {/* PEDIDOS */}
-        {seccion === 'pedidos' && (
-          <div className="space-y-6 max-w-5xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <div>
-                <h2 className="text-xl font-bold font-serif text-amber-400">Gestión de Pedidos & Revisiones</h2>
-                <p className="text-xs text-slate-400">Clasifica el estado de solicitudes y coordina cambios.</p>
+            {esMayorista ? (
+              <div className="flex items-center space-x-2 bg-amber-800 text-white px-3 py-0.5 rounded text-[10px] font-mono">
+                <span>👑 Mayorista: <strong>{clienteMayoristaActivo?.nombre}</strong></span>
+                <button onClick={cerrarSesionMayorista} className="underline hover:text-amber-200 ml-1">Salir</button>
               </div>
-
-              <div className="flex flex-wrap gap-1 bg-slate-900 p-1.5 rounded-lg border border-slate-800 text-[11px] font-bold">
-                {['Todos', 'Pendiente de revisar', 'Por confirmar cambios', 'Revisado', 'Cancelado'].map((est) => (
-                  <button
-                    key={est}
-                    onClick={() => setFiltroEstadoPedido(est)}
-                    className={`px-3 py-1.5 rounded transition ${
-                      filtroEstadoPedido === est ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {est}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {pedidosFiltrados.map((ped) => (
-                <div key={ped.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-3">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-white text-sm">Pedido #{ped.id}</span>
-                        <span className="text-slate-500">•</span>
-                        <span className="text-amber-400 font-bold">{ped.cliente}</span>
-                      </div>
-                      <p className="text-slate-400 text-[11px]">Tarifa Aplicada: Q{ped.tarifaG}/g | Fecha: {ped.fecha}</p>
-                    </div>
-
-                    <div className="flex items-center space-x-3">
-                      <select 
-                        value={ped.estado} 
-                        onChange={(e) => cambiarEstadoPedidoDirecto(ped.id, e.target.value)}
-                        className="p-1.5 rounded font-bold text-xs bg-slate-950 border border-slate-700 text-amber-400"
-                      >
-                        <option value="Pendiente de revisar">🟡 Pendiente de revisar</option>
-                        <option value="Por confirmar cambios">🔵 Por confirmar cambios</option>
-                        <option value="Revisado">🟢 Revisado</option>
-                        <option value="Cancelado">🔴 Cancelado</option>
-                      </select>
-
-                      <button onClick={() => setPedidoDetalleModal(ped)} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded text-xs">
-                        🔍 Revisar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {pedidoDetalleModal && (
-              <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-                <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl max-w-2xl w-full space-y-4 text-xs">
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                    <h3 className="font-bold text-amber-400 text-sm">Revisión Pedido #{pedidoDetalleModal.id}</h3>
-                    <button onClick={() => setPedidoDetalleModal(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
-                  </div>
-                  <div className="flex justify-end space-x-2 border-t border-slate-800 pt-3">
-                    <button onClick={() => setPedidoDetalleModal(null)} className="bg-slate-800 text-slate-300 font-bold px-4 py-2 rounded">Cancelar</button>
-                    <button onClick={guardarRevisionPedido} className="bg-emerald-600 text-white font-bold px-4 py-2 rounded uppercase">Guardar</button>
-                  </div>
-                </div>
-              </div>
+            ) : (
+              <button 
+                onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} 
+                className="hidden sm:inline-block font-mono text-[10px] bg-amber-800 hover:bg-amber-900 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition"
+              >
+                🔐 Iniciar Sesión Mayoristas
+              </button>
             )}
           </div>
-        )}
+        </div>
 
-        {/* PROMOCIONES */}
-        {seccion === 'promociones' && (
-          <div className="space-y-6 max-w-5xl">
-            <div>
-              <h2 className="text-xl font-bold font-serif text-amber-400">Cupones para Productos Específicos</h2>
-              <p className="text-xs text-slate-400">Selecciona las piezas con descuento.</p>
+        {/* ENCABEZADO */}
+        <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs text-zinc-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+            
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
+              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden">
+                {configPortada.logoUrl.startsWith('http') ? (
+                  <img src={configPortada.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <span>AG</span>
+                )}
+              </div>
+              <div>
+                <span className="font-serif font-bold text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>
+                <span className="text-[10px] uppercase font-mono tracking-widest text-amber-800 font-semibold">
+                  {esMayorista ? 'Portal Mayorista B2B' : 'Distribuidor de Platería'}
+                </span>
+              </div>
             </div>
 
-            <form onSubmit={crearCupon} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Configurar Cupón</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="Código" value={nuevoCupon.codigo} onChange={(e) => setNuevoCupon({ ...nuevoCupon, codigo: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-bold uppercase" required />
-                <select value={nuevoCupon.tipo} onChange={(e) => setNuevoCupon({ ...nuevoCupon, tipo: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
-                  <option value="porcentaje">Porcentaje (%)</option>
-                  <option value="fijo">Monto Fijo (Q)</option>
-                </select>
-                <input type="number" placeholder="Valor" value={nuevoCupon.valor || ''} onChange={(e) => setNuevoCupon({ ...nuevoCupon, valor: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="number" placeholder="Límite usos" value={nuevoCupon.usoLimite || ''} onChange={(e) => setNuevoCupon({ ...nuevoCupon, usoLimite: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-              </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded uppercase text-xs">Activar Cupón</button>
-            </form>
+            <nav className="hidden md:flex items-center space-x-8 text-xs font-bold uppercase tracking-wider text-zinc-700">
+              <button onClick={() => setVistaActual('inicio')} className={`transition ${vistaActual === 'inicio' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Inicio</button>
+              <button onClick={() => setVistaActual('categorias')} className={`transition ${vistaActual === 'categorias' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Categorías</button>
+              <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className={`transition ${vistaActual === 'catalogo' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Catálogo</button>
+              <button onClick={() => setVistaActual('nosotros')} className={`transition ${vistaActual === 'nosotros' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Nosotros</button>
+              <button onClick={() => setVistaActual('historial')} className={`transition ${vistaActual === 'historial' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Mis Pedidos</button>
+              {!esMayorista && (
+                <button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className={`transition ${vistaActual === 'login' || vistaActual === 'registro_mayorista' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-800'}`}>Iniciar Sesión</button>
+              )}
+            </nav>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <thead className="bg-slate-800 text-slate-300 font-bold uppercase text-[10px]">
-                  <tr>
-                    <th className="p-3">Código</th>
-                    <th className="p-3">Descuento</th>
-                    <th className="p-3 text-center">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-300">
-                  {cupones.map((c) => (
-                    <tr key={c.id}>
-                      <td className="p-3 font-mono font-bold text-amber-400">{c.codigo}</td>
-                      <td className="p-3 font-bold text-white">{c.tipo === 'porcentaje' ? `${c.valor}% OFF` : `Q${c.valor}.00 OFF`}</td>
-                      <td className="p-3 text-center">
-                        <button onClick={() => cambiarEstadoCupon(c.id)} className={`px-2 py-1 rounded text-[10px] font-bold ${c.activo ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
-                          {c.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center space-x-4">
+              <div className="relative hidden sm:block">
+                <input 
+                  type="text" 
+                  placeholder="Buscar producto..." 
+                  value={busqueda} 
+                  onChange={(e) => { setBusqueda(e.target.value); setVistaActual('catalogo'); }}
+                  className="w-48 lg:w-64 pl-3 pr-8 py-1.5 bg-[#f5efe4] border border-[#e5d9c5] rounded-md text-xs focus:outline-none focus:border-amber-600 transition"
+                />
+                <span className="absolute right-2.5 top-1.5 text-amber-800/60 text-xs">🔍</span>
+              </div>
+
+              <button 
+                onClick={() => setVistaActual('carrito')} 
+                className="relative p-2 bg-zinc-900 text-amber-400 hover:bg-zinc-800 rounded-md transition font-bold text-xs flex items-center space-x-2 border border-amber-500/40"
+              >
+                <svg className="w-4 h-4 fill-current text-amber-400" viewBox="0 0 24 24">
+                  <path d="M16 7a4 4 0 00-8 0H4v14a2 2 0 002 2h12a2 2 0 002-2V7h-4zm-6-3a2 2 0 014 0v3h-4V4zm8 17H6V9h2v2a1 1 0 002 0V9h4v2a1 1 0 002 0V9h2v12z"/>
+                </svg>
+                <span className="hidden sm:inline text-white">Q{totalMonto.toFixed(2)}</span>
+                <span className="bg-amber-600 text-white font-bold rounded-full px-1.5 py-0.2 text-[10px]">{totalPiezas}</span>
+              </button>
             </div>
           </div>
-        )}
+        </header>
 
-        {/* MAYORISTAS */}
-        {seccion === 'mayoristas' && (
-          <div className="space-y-6 max-w-5xl">
-            <div>
-              <h2 className="text-xl font-bold font-serif text-amber-400">Clientes Mayoristas & Cuentas Por Cobrar</h2>
-              <p className="text-xs text-slate-400">Ajusta tarifas y créditos.</p>
-            </div>
-
-            <form onSubmit={agregarCliente} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3 text-xs">
-              <h3 className="font-bold uppercase text-amber-400">＋ Registrar Nuevo Cliente</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="Nombre" value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Teléfono" value={nuevoCliente.telefono} onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="number" placeholder="Tarifa Base (Q/g)" value={nuevoCliente.tarifaG} onChange={(e) => setNuevoCliente({ ...nuevoCliente, tarifaG: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <select value={nuevoCliente.vendedorAsignado} onChange={(e) => setNuevoCliente({ ...nuevoCliente, vendedorAsignado: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
-                  {vendedores.map(v => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded uppercase">Guardar Cliente</button>
-            </form>
-
-            <div className="space-y-3">
-              {mayoristas.map((m) => (
-                <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-xs">
-                  <div>
-                    <h3 className="font-bold text-white text-sm">{m.nombre}</h3>
-                    <p className="text-slate-400">Tel: {m.telefono} | Deuda: <span className="text-rose-400 font-bold">Q{m.saldoDeuda}</span></p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => cambiarEstado(m.id, m.estado === 'Autorizada' ? 'Suspendida' : 'Autorizada')} className={`px-2.5 py-1 rounded font-bold text-[10px] ${m.estado === 'Autorizada' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                      {m.estado}
+        {/* VISTA: INICIO */}
+        {vistaActual === 'inicio' && (
+          <>
+            <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+                <div className="max-w-xl space-y-6 text-center md:text-left">
+                  <span className="inline-block px-3.5 py-1 bg-[#eadcc7] text-amber-900 text-xs font-semibold rounded-full border border-amber-300 uppercase tracking-widest">
+                    {configPortada.subtitulo}
+                  </span>
+                  <h1 className="text-4xl sm:text-5xl font-serif font-light text-zinc-900 tracking-wide leading-tight">
+                    {configPortada.titulo}
+                  </h1>
+                  <p className="text-zinc-600 text-sm font-light leading-relaxed">
+                    {esMayorista 
+                      ? `Bienvenido/a ${clienteMayoristaActivo?.nombre}. Tu tarifario preferencial por gramo se encuentra activo en todas las joyas.`
+                      : configPortada.nosotrosTexto.slice(0, 140) + '...'
+                    }
+                  </p>
+                  <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+                    <button onClick={() => setVistaActual('categorias')} className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-8 py-3 rounded-md text-xs uppercase tracking-wider transition shadow-md">
+                      Ver Categorías
+                    </button>
+                    <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className="bg-white hover:bg-[#f2ece1] text-zinc-900 font-bold px-8 py-3 rounded-md text-xs uppercase tracking-wider border border-amber-300 transition">
+                      Ver Catálogo Completo
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* REPORTES */}
-        {seccion === 'reportes' && (
-          <div className="space-y-6 max-w-5xl">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Panel de Reportes de Ventas</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <p className="text-slate-400">Ventas Contado</p>
-                <p className="text-xl font-black text-emerald-400 mt-1">Q{reportes.ventasContado.toLocaleString()}</p>
-              </div>
-              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                <p className="text-slate-400">Cuentas Por Cobrar</p>
-                <p className="text-xl font-black text-rose-400 mt-1">Q{reportes.creditosPendientesMonto.toLocaleString()}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* VENDEDORES */}
-        {seccion === 'vendedores' && (
-          <div className="space-y-8 max-w-5xl">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Gestión de Trabajadores & Accesos</h2>
-            <form onSubmit={agregarVendedor} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400">＋ Registrar Nuevo Vendedor</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="Nombre" value={nuevoVendedor.nombre} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, nombre: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Teléfono" value={nuevoVendedor.telefono} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, telefono: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Usuario" value={nuevoVendedor.usuario} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, usuario: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Contraseña" value={nuevoVendedor.password} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, password: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" required />
-              </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded text-xs uppercase">Crear Perfil</button>
-            </form>
-          </div>
-        )}
-
-        {/* SECCIÓN 5: PRODUCTOS, TALLAS Y SELECTOR MULTIMEDIA DE GOOGLE DRIVE */}
-        {seccion === 'productos' && (
-          <div className="space-y-6 max-w-5xl">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold font-serif text-amber-400">Inventario con Tallas y Medidas</h2>
-                <p className="text-xs text-slate-400">Selecciona imágenes desde tu Cloud / Google Drive para asociarlas a la joya.</p>
-              </div>
-              <button onClick={exportarCatalogoCSV} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded shadow transition">
-                📥 Exportar Catálogo CSV (con links Drive)
-              </button>
-            </div>
-
-            <form onSubmit={agregarProducto} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Joya con Medidas</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="SKU (ej: ANI-012)" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Código de Barras" value={nuevoProd.barcode} onChange={(e) => setNuevoProd({ ...nuevoProd, barcode: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
-                <input type="text" placeholder="Nombre" value={nuevoProd.nombre} onChange={(e) => setNuevoProd({ ...nuevoProd, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <select value={nuevoProd.categoria} onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
-                  {categoriasBase.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-              </div>
-
-              {/* SECCIÓN MULTIMEDIA EXACTA A TU SOLICITUD */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia (Google Drive / Galería Cloud) *</label>
-                
-                <div 
-                  onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
-                  className="w-full py-6 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-2 cursor-pointer transition group"
-                >
-                  <div className="w-10 h-10 bg-slate-900 rounded-lg border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition">
-                    📁
+                <div className="relative">
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl overflow-hidden">
+                    <img src={configPortada.bannerUrl} alt="Joyería AG47" className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" />
                   </div>
-                  <span className="font-bold text-amber-300 text-xs">Seleccionar imágenes desde Google Drive (Estilo Galería)</span>
-                  <span className="text-[10px] text-slate-400">({nuevoProd.fotos.length} imágenes seleccionadas para este producto)</span>
                 </div>
+              </div>
+            </section>
 
-                {/* MINIATURAS SELECCIONADAS */}
-                {nuevoProd.fotos.length > 0 && (
-                  <div className="flex gap-2 pt-2 overflow-x-auto">
-                    {nuevoProd.fotos.map((imgUrl, idx) => (
-                      <img key={idx} src={imgUrl} alt="" className="w-14 h-14 object-cover rounded-lg border-2 border-amber-500 shadow-sm" />
-                    ))}
-                  </div>
-                )}
+            <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-end mb-8 border-b border-[#ebd9c1] pb-4">
+                <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Categorías</h2>
+                <button onClick={() => setVistaActual('categorias')} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver Todas →</button>
               </div>
 
-              <div className="space-y-2 border-t border-slate-800 pt-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-amber-400 uppercase text-[11px]">Tallas / Medidas Individuales:</span>
-                  <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Medida</button>
-                </div>
-                {nuevoProd.variantes.map((v, idx) => (
-                  <div key={idx} className="grid grid-cols-3 gap-2 bg-slate-950 p-2 rounded border border-slate-800">
-                    <input type="text" placeholder="Medida (ej. Talla 7)" value={v.medida} onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
-                    <input type="number" step="0.1" placeholder="Peso (g)" value={v.peso || ''} onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
-                    <input type="number" placeholder="Stock" value={v.stock || ''} onChange={(e) => actualizarVarianteForm(idx, 'stock', Number(e.target.value))} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                {todasLasCategorias.slice(0, 6).map((cat) => (
+                  <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white p-3 rounded-xl border border-[#eadecd] hover:border-amber-500 cursor-pointer text-center transition">
+                    <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-[#f7f2e8]">
+                      <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                    </div>
+                    <h3 className="font-serif font-bold text-xs uppercase text-zinc-800 group-hover:text-amber-700">{cat.nombre}</h3>
                   </div>
                 ))}
               </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded text-xs uppercase">Guardar Joya</button>
-            </form>
+            </section>
+          </>
+        )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {productosFiltrados.map((p) => (
-                <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
-                  <div className="flex space-x-3 items-center">
-                    <img src={p.fotos[0]} alt={p.nombre} className="w-16 h-16 object-cover rounded bg-slate-800 shrink-0 border border-slate-700" />
-                    <div>
-                      <p className="font-bold text-white text-sm">{p.nombre}</p>
-                      <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
-                      <p className="font-bold text-emerald-400">Precio Público: Q{p.precioMinorista}</p>
+        {/* VISTA: NOSOTROS (Editada desde el Admin) */}
+        {vistaActual === 'nosotros' && (
+          <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[65vh]">
+            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
+              <h1 className="text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wide text-center">Sobre Nosotros</h1>
+              <p className="text-sm text-zinc-700 leading-relaxed font-light text-center">
+                {configPortada.nosotrosTexto}
+              </p>
+              <div className="border-t border-[#f2e7d5] pt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-zinc-600">
+                <div>
+                  <h3 className="font-bold uppercase text-amber-900 mb-2">📍 Sucursales / Direcciones</h3>
+                  <ul className="space-y-1">
+                    {configPortada.direcciones.map((dir, i) => <li key={i}>• {dir}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <h3 className="font-bold uppercase text-amber-900 mb-2">📞 Teléfonos de Contacto</h3>
+                  <ul className="space-y-1">
+                    {configPortada.telefonos.map((tel, i) => <li key={i}>• {tel}</li>)}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: HISTORIAL DE PEDIDOS */}
+        {vistaActual === 'historial' && (
+          <section className="py-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / <span className="text-amber-800 font-bold">Historial de Pedidos</span>
+            </div>
+
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-2">MIS PEDIDOS REALIZADOS</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-6">CONSULTA AQUÍ EL ESTADO ACTUAL DE TUS SOLICITUDES EN TIEMPO REAL</p>
+
+            {misPedidos.length === 0 ? (
+              <div className="bg-white p-12 rounded-xl border border-[#e5d8c3] text-center space-y-4">
+                <p className="text-zinc-500 text-xs uppercase tracking-wider">Aún no has registrado ningún pedido en este navegador.</p>
+                <button onClick={() => setVistaActual('catalogo')} className="bg-amber-700 text-white font-bold text-xs px-6 py-2.5 rounded uppercase">
+                  Ver Catálogo de Joyería
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {misPedidos.map((ped) => (
+                  <div key={ped.id} className="bg-white rounded-xl border border-[#e5d8c3] p-5 shadow-xs space-y-4 text-xs text-zinc-900">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#f2e7d5] pb-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-zinc-900 text-sm">Pedido #{ped.id}</span>
+                          <span className="text-zinc-400">•</span>
+                          <span className="text-zinc-600 font-medium">{ped.cliente}</span>
+                        </div>
+                        <p className="text-zinc-400 text-[11px] mt-0.5">Fecha de solicitud: {ped.fecha}</p>
+                      </div>
+
+                      <div>
+                        <span className={`px-3 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
+                          ped.estado === 'Pendiente de revisar' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          ped.estado === 'Por confirmar cambios' ? 'bg-blue-100 text-blue-900 border border-blue-300' :
+                          ped.estado === 'Revisado' ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                          'bg-rose-100 text-rose-900 border border-rose-300'
+                        }`}>
+                          {ped.estado}
+                        </span>
+                      </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <p className="font-bold text-zinc-700 uppercase text-[10px]">Artículos Solicitados:</p>
+                      <div className="divide-y divide-zinc-100 bg-[#fcfaf7] rounded-lg p-3 border border-[#f0e6d6]">
+                        {ped.items?.map((it: any, idx: number) => (
+                          <div key={idx} className="py-1.5 flex justify-between items-center text-xs">
+                            <span className="text-zinc-800 font-medium">• {it.nombre}</span>
+                            <span className="font-mono text-zinc-600">Cant: {it.cantidadSolicitada}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* VISTA: CATEGORÍAS */}
+        {vistaActual === 'categorias' && (
+          <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="bg-white p-8 rounded-2xl border border-[#eadecd] shadow-xs mb-10 text-center">
+              <h1 className="text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wider">TODAS NUESTRAS CATEGORÍAS</h1>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {todasLasCategorias.map((cat) => (
+                <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white rounded-2xl border border-[#eadecd] overflow-hidden cursor-pointer hover:border-amber-500 transition shadow-xs">
+                  <div className="aspect-4/3 overflow-hidden bg-[#f7f2e8]">
+                    <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                  </div>
+                  <div className="p-5 text-center">
+                    <h3 className="font-serif font-bold text-base text-zinc-900 uppercase tracking-wider group-hover:text-amber-800">{cat.nombre}</h3>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* MARCA, ESTILOS, TEXTOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" */}
-        {seccion === 'portada' && (
-          <div className="space-y-6 max-w-4xl text-xs">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos, Estilos, Direcciones, Teléfonos y Redes</h2>
-            <p className="text-slate-400">Personaliza la apariencia, el contenido de la tienda y la información de contacto oficial.</p>
-            
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
-              
-              {/* TÍTULOS Y TEXTOS */}
-              <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📝 Textos Principales de Portada</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Título Principal:</label>
-                    <input type="text" value={portada.titulo} onChange={(e) => setPortada({ ...portada, titulo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white" />
+        {/* VISTA: CATÁLOGO DE PRODUCTOS */}
+        {vistaActual === 'catalogo' && (
+          <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-[#ebd9c1] pb-6 gap-4">
+              <div>
+                <span className="text-xs font-mono text-amber-800 uppercase font-bold">Catálogo de Joyería</span>
+                <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">{categoriaFiltro === 'Todas' ? 'Todos los Productos' : `Categoría: ${categoriaFiltro}`}</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setCategoriaFiltro('Todas')} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${categoriaFiltro === 'Todas' ? 'bg-amber-800 text-white' : 'bg-[#f4ebd9] text-zinc-700'}`}>Todas</button>
+                {todasLasCategorias.map((c) => (
+                  <button key={c.id} onClick={() => setCategoriaFiltro(c.nombre)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${categoriaFiltro === c.nombre ? 'bg-amber-800 text-white' : 'bg-[#f4ebd9] text-zinc-700'}`}>{c.nombre}</button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+              {productosFiltrados.map((prod) => {
+                const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
+                const pesoBase = prod.variantes[0]?.peso || 0;
+                const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                const enCarrito = estaEnCarrito(prod.id);
+
+                return (
+                  <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                    <div>
+                      <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
+                        <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                        {enCarrito && (
+                          <span className="absolute top-3 left-3 bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">
+                            ✓ En Carrito
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-1">
+                        <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
+                        <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                      </div>
+                    </div>
+
+                    <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
+                      {esMayorista ? (
+                        <div className="flex flex-col py-1">
+                          <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                          <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                          <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
+                        </div>
+                      )}
+                      <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Subtítulo / Especial:</label>
-                    <input type="text" value={portada.subtitulo} onChange={(e) => setPortada({ ...portada, subtitulo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white" />
-                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: CARRITO DE COMPRA */}
+        {vistaActual === 'carrito' && (
+          <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / <span className="text-amber-800 font-bold">Carrito</span>
+            </div>
+
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-2">CARRITO DE COMPRA</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-6">PARA CONTINUAR CON EL PEDIDO HAGA CLIC EN EL BOTÓN "SIGUIENTE"</p>
+
+            <div className="flex justify-end mb-4">
+              <button 
+                onClick={() => setVistaActual('revision')}
+                disabled={carrito.length === 0}
+                className="bg-zinc-200 hover:bg-amber-700 hover:text-white text-zinc-800 text-xs uppercase font-bold px-8 py-2.5 rounded transition disabled:opacity-50"
+              >
+                SIGUIENTE →
+              </button>
+            </div>
+
+            <div className="bg-white rounded-lg border border-[#e5d8c3] overflow-x-auto shadow-xs">
+              <table className="w-full text-left text-xs font-sans text-zinc-900">
+                <thead className="bg-[#f2ece1] border-b border-[#e5d8c3] text-zinc-600 font-bold uppercase">
+                  <tr>
+                    <th className="py-3 px-4 w-12 text-center">N°</th>
+                    <th className="py-3 px-4">ITEMS</th>
+                    <th className="py-3 px-4 text-center">PZ</th>
+                    <th className="py-3 px-4 text-center">CANT</th>
+                    <th className="py-3 px-4 text-right">TOTAL</th>
+                    <th className="py-3 px-4 text-center">i</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f2e7d5]">
+                  {carrito.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-zinc-400 uppercase tracking-wider">Tu carrito está vacío actualmente</td>
+                    </tr>
+                  ) : (
+                    carrito.map((item, index) => (
+                      <tr key={item.id} className="hover:bg-[#fcfaf7]">
+                        <td className="py-4 px-4 text-center font-bold text-zinc-400">{index + 1}</td>
+                        <td className="py-4 px-4">
+                          <div 
+                            onClick={() => verProductoDesdeCarrito(item.productoId)}
+                            className="flex items-center space-x-3 cursor-pointer group"
+                            title="Haz clic para ver el producto"
+                          >
+                            <img src={item.foto} alt={item.nombre} className="w-12 h-12 object-cover rounded bg-zinc-100 group-hover:opacity-80 transition" />
+                            <div>
+                              <p className="font-bold text-zinc-900 group-hover:text-amber-800 transition">{item.nombre} | Talla: {item.medida}</p>
+                              <span className="text-[10px] font-mono text-zinc-400">
+                                SKU: {item.sku} {esMayorista && `| Peso: ${item.pesoUnitario}g`}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-center font-medium">Q{item.precio.toFixed(2)}</td>
+                        <td className="py-4 px-4 text-center">
+                          <div className="inline-flex items-center border border-[#e5d8c3] rounded bg-white">
+                            <button onClick={() => modificarCantidad(item.id, -1)} className="px-2 py-1 text-zinc-600 hover:bg-zinc-100 font-bold">◀</button>
+                            <span className="px-3 font-mono font-bold text-zinc-800">{item.cantidad}</span>
+                            <button onClick={() => modificarCantidad(item.id, 1)} className="px-2 py-1 text-zinc-600 hover:bg-zinc-100 font-bold">▶</button>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-right font-bold text-zinc-900">Q{(item.precio * item.cantidad).toFixed(2)}</td>
+                        <td className="py-4 px-4 text-center">
+                          <button onClick={() => eliminarDelCarrito(item.id)} className="text-zinc-400 hover:text-rose-600 text-xs font-bold uppercase">✕ Quitar</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {carrito.length > 0 && (
+              <div className="mt-8 space-y-6">
+                <div className="flex justify-center items-center space-x-12 text-lg font-serif">
+                  <span className="text-zinc-600">Total pedido</span>
+                  <span className="font-bold text-zinc-800">{totalPiezas} piezas</span>
+                  <span className="font-bold text-amber-800 text-2xl">Q{totalMonto.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-4">
+                  <button onClick={vaciarCarrito} className="bg-zinc-100 border border-zinc-300 text-zinc-600 hover:bg-rose-50 hover:text-rose-700 text-xs font-bold px-6 py-2.5 rounded uppercase tracking-wider transition">
+                    BORRAR CARRITO
+                  </button>
+                  <button onClick={() => setVistaActual('revision')} className="bg-zinc-200 hover:bg-amber-700 hover:text-white text-zinc-800 text-xs uppercase font-bold px-8 py-2.5 rounded transition">
+                    SIGUIENTE →
+                  </button>
                 </div>
               </div>
+            )}
+          </section>
+        )}
 
-              {/* SECCIÓN NOSOTROS */}
-              <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🏢 Edición Sección "Nosotros"</h3>
+        {/* VISTA: LOGIN MAYORISTA */}
+        {vistaActual === 'login' && (
+          <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+              
+              <div className="text-center space-y-2">
+                <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wide">
+                  INICIAR SESIÓN
+                </h1>
+                <p className="text-xs text-zinc-500 font-light leading-relaxed">
+                  Ingresa tus credenciales autorizadas para consultar el tarifario por gramo y realizar pedidos al por mayor.
+                </p>
+              </div>
+
+              <form onSubmit={ejecutarLoginMayorista} className="space-y-4 text-xs">
                 <div>
-                  <label className="font-bold block mb-1 text-slate-300">Texto Institucional / Quiénes Somos:</label>
-                  <textarea 
-                    rows={4} 
-                    value={portada.nosotrosTexto} 
-                    onChange={(e) => setPortada({ ...portada, nosotrosTexto: e.target.value })} 
-                    className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white leading-relaxed"
+                  <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                    USUARIO O CORREO ELECTRÓNICO *
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="ejemplo@joyeria.com o tu nombre"
+                    value={loginUsuario}
+                    onChange={(e) => setLoginUsuario(e.target.value)}
+                    className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600 transition"
                   />
                 </div>
-              </div>
 
-              {/* LOGO Y BANNER */}
-              <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️ URLs de Logo e Imagen de Banner</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">URL del Logo:</label>
-                    <input type="text" value={portada.logoUrl} onChange={(e) => setPortada({ ...portada, logoUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-bold text-zinc-700 uppercase tracking-wider text-[11px]">
+                      CONTRASEÑA *
+                    </label>
+                    <a href="#" onClick={(e) => { e.preventDefault(); alert('Ponte en contacto con soporte para restablecer tu clave.'); }} className="text-[11px] text-amber-800 hover:underline">
+                      ¿Olvidaste tu contraseña?
+                    </a>
                   </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">URL Imagen Banner:</label>
-                    <input type="text" value={portada.bannerUrl} onChange={(e) => setPortada({ ...portada, bannerUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
-                  </div>
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600 transition"
+                  />
                 </div>
-              </div>
 
-              {/* ESTILOS Y TIPOGRAFÍA */}
-              <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🎨 Estilo de Letra y Paleta de Colores</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Estilo de Tipografía:</label>
-                    <select value={portada.fuenteEstilo} onChange={(e) => setPortada({ ...portada, fuenteEstilo: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-bold">
-                      <option value="font-sans">Moderna (Sans)</option>
-                      <option value="font-serif">Elegante / Joyería (Serif)</option>
-                      <option value="font-mono">Técnica (Monospace)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Color Principal Web:</label>
-                    <input type="color" value={portada.colorWebPrincipal} onChange={(e) => setPortada({ ...portada, colorWebPrincipal: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Color Fondo Web:</label>
-                    <input type="color" value={portada.colorWebFondo} onChange={(e) => setPortada({ ...portada, colorWebFondo: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Color Texto Web:</label>
-                    <input type="color" value={portada.colorWebTexto} onChange={(e) => setPortada({ ...portada, colorWebTexto: e.target.value })} className="w-full h-10 bg-slate-950 border border-slate-800 rounded cursor-pointer p-1" />
-                  </div>
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center space-x-2 cursor-pointer text-zinc-600">
+                    <input 
+                      type="checkbox" 
+                      checked={loginRecordar}
+                      onChange={(e) => setLoginRecordar(e.target.checked)}
+                      className="rounded border-amber-300 text-amber-700"
+                    />
+                    <span>Recordar mi sesión</span>
+                  </label>
                 </div>
-              </div>
 
-              {/* MÚLTIPLES TELÉFONOS */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h3 className="font-bold uppercase text-amber-400">📞 Números de Teléfono (Múltiples)</h3>
-                  <button type="button" onClick={() => setPortada({ ...portada, telefonos: [...portada.telefonos, ''] })} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Teléfono</button>
-                </div>
-                <div className="space-y-2">
-                  {portada.telefonos.map((tel: string, idx: number) => (
-                    <div key={idx} className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={tel} 
-                        onChange={(e) => {
-                          const nuevosTels = [...portada.telefonos];
-                          nuevosTels[idx] = e.target.value;
-                          setPortada({ ...portada, telefonos: nuevosTels });
-                        }} 
-                        className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-white font-mono" 
-                        placeholder="+502 0000-0000"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          const nuevosTels = portada.telefonos.filter((_: any, i: number) => i !== idx);
-                          setPortada({ ...portada, telefonos: nuevosTels });
-                        }} 
-                        className="bg-rose-600/20 text-rose-400 px-3 py-1 rounded font-bold hover:bg-rose-600 hover:text-white transition"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <button 
+                  type="submit"
+                  disabled={cargandoLogin}
+                  className="w-full bg-zinc-900 hover:bg-amber-800 text-amber-400 hover:text-white font-bold py-3.5 rounded-lg text-xs uppercase tracking-widest transition shadow-md flex items-center justify-center space-x-2 border border-amber-500/30"
+                >
+                  {cargandoLogin ? (
+                    <span>Verificando...</span>
+                  ) : (
+                    <span>INGRESAR AL PORTAL MAYORISTA →</span>
+                  )}
+                </button>
+              </form>
 
-              {/* MÚLTIPLES DIRECCIONES */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <h3 className="font-bold uppercase text-amber-400">📍 Direcciones Físicas / Sucursales</h3>
-                  <button type="button" onClick={() => setPortada({ ...portada, direcciones: [...portada.direcciones, ''] })} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Dirección</button>
-                </div>
-                <div className="space-y-2">
-                  {portada.direcciones.map((dir: string, idx: number) => (
-                    <div key={idx} className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={dir} 
-                        onChange={(e) => {
-                          const nuevasDirs = [...portada.direcciones];
-                          nuevasDirs[idx] = e.target.value;
-                          setPortada({ ...portada, direcciones: nuevasDirs });
-                        }} 
-                        className="flex-1 p-2 bg-slate-950 border border-slate-800 rounded text-white" 
-                        placeholder="Ej. Zona 10, Ciudad de Guatemala"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          const nuevasDirs = portada.direcciones.filter((_: any, i: number) => i !== idx);
-                          setPortada({ ...portada, direcciones: nuevasDirs });
-                        }} 
-                        className="bg-rose-600/20 text-rose-400 px-3 py-1 rounded font-bold hover:bg-rose-600 hover:text-white transition"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="border-t border-[#eadcc7] pt-6 text-center space-y-3">
+                <p className="text-xs text-zinc-600">
+                  ¿Aún no tienes una cuenta de cliente mayorista?
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => setVistaActual('registro_mayorista')}
+                  className="w-full bg-[#f4ebd9] hover:bg-[#eae0cb] text-amber-950 font-bold py-3 rounded-lg text-xs uppercase tracking-wider border border-amber-300 transition"
+                >
+                  SOLICITAR REGISTRO MAYORISTA
+                </button>
               </div>
-
-              {/* REDES SOCIALES */}
-              <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🌐 Enlaces de Redes Sociales</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Facebook URL:</label>
-                    <input type="text" value={portada.redesSociales.facebook} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, facebook: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">Instagram URL:</label>
-                    <input type="text" value={portada.redesSociales.instagram} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, instagram: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">TikTok URL:</label>
-                    <input type="text" value={portada.redesSociales.tiktok} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, tiktok: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
-                  </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">WhatsApp Enlace Directo:</label>
-                    <input type="text" value={portada.redesSociales.whatsapp} onChange={(e) => setPortada({ ...portada, redesSociales: { ...portada.redesSociales, whatsapp: e.target.value } })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-white font-mono" />
-                  </div>
-                </div>
-              </div>
-
-              <button onClick={guardarConfiguracionPortada} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-wider shadow transition">
-                💾 Guardar Configuración General de la Marca
-              </button>
 
             </div>
-          </div>
+          </section>
         )}
 
-      </main>
+        {/* VISTA: REGISTRO MAYORISTA */}
+        {vistaActual === 'registro_mayorista' && (
+          <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+              
+              {!solicitudEnviada ? (
+                <>
+                  <div className="text-center space-y-2">
+                    <h1 className="text-2xl font-serif font-bold text-zinc-900 uppercase tracking-wide">
+                      SOLICITUD DE REGISTRO MAYORISTA
+                    </h1>
+                    <p className="text-xs text-zinc-500 font-light leading-relaxed">
+                      Ingresa tus datos para autorizar tu acceso al tarifario preferencial por gramo.
+                    </p>
+                  </div>
 
-      {/* VENTANA MODAL: SELECTOR ESTILO GALERÍA GOOGLE DRIVE */}
-      {modalGaleriaAbierto && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 rounded-2xl max-w-4xl w-full p-6 space-y-6 shadow-2xl border border-amber-500/40 max-h-[85vh] flex flex-col text-xs">
-            
-            <div className="flex justify-between items-center border-b border-slate-800 pb-4">
-              <div>
-                <h2 className="font-serif font-bold text-base text-amber-400">Seleccionar imágenes desde Google Drive</h2>
-                <p className="text-[11px] text-slate-400">Marca las casillas de verificación de las fotos que deseas asociar al producto.</p>
-              </div>
-              <button onClick={() => setModalGaleriaAbierto(false)} className="w-8 h-8 bg-slate-800 hover:bg-slate-700 rounded-full font-bold flex items-center justify-center text-white">✕</button>
-            </div>
-
-            <div className="flex justify-between items-center gap-4">
-              <input 
-                type="text" 
-                placeholder="Buscar archivo..." 
-                value={filtroGaleriaDrive}
-                onChange={e => setFiltroGaleriaDrive(e.target.value)}
-                className="w-full max-w-sm p-2 bg-slate-950 border border-slate-800 rounded text-white"
-              />
-              <span className="font-mono font-bold text-amber-400">{imagenesSeleccionadasTemp.length} seleccionadas</span>
-            </div>
-
-            {/* CUADRÍCULA DE ARCHIVOS CON CHECKBOXES */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto p-2 flex-1">
-              {galeriaDrive
-                .filter(img => img.nombre.toLowerCase().includes(filtroGaleriaDrive.toLowerCase()))
-                .map((img) => {
-                  const estaMarcada = imagenesSeleccionadasTemp.includes(img.url);
-                  return (
-                    <div 
-                      key={img.id}
-                      onClick={() => {
-                        if (estaMarcada) {
-                          setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter(u => u !== img.url));
-                        } else {
-                          setImagenesSeleccionadasTemp([...imagenesSeleccionadasTemp, img.url]);
-                        }
-                      }}
-                      className={`relative aspect-square rounded-xl border-2 overflow-hidden cursor-pointer transition flex flex-col justify-end p-2 ${
-                        estaMarcada ? 'border-amber-500 ring-2 ring-amber-500/30 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:border-slate-600'
-                      }`}
-                    >
-                      <img src={img.url} alt={img.nombre} className="absolute inset-0 w-full h-full object-cover" />
-                      
-                      {/* CHECKBOX VISUAL SUPERIOR */}
-                      <div className="absolute top-3 right-3 w-6 h-6 rounded bg-slate-900/90 border border-slate-600 flex items-center justify-center shadow">
-                        {estaMarcada && <span className="text-amber-400 font-bold text-xs">✓</span>}
-                      </div>
-
-                      <div className="relative bg-slate-950/80 backdrop-blur-xs text-white p-1 rounded text-[10px] truncate font-mono">
-                        {img.nombre}
-                      </div>
+                  <form onSubmit={enviarRegistroMayorista} className="space-y-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Nombre Completo *
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. Juan Pérez"
+                        value={datosRegistroMayorista.nombreCompleto}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, nombreCompleto: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
                     </div>
-                  );
-                })}
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Teléfono / WhatsApp *
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="Ej. 5555-0000"
+                        value={datosRegistroMayorista.telefono}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, telefono: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Correo Electrónico (Opcional)
+                      </label>
+                      <input 
+                        type="email" 
+                        placeholder="contacto@ejemplo.com"
+                        value={datosRegistroMayorista.correo}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, correo: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                        Tipo de Cliente
+                      </label>
+                      <select 
+                        value={datosRegistroMayorista.tipoCliente}
+                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, tipoCliente: e.target.value })}
+                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600"
+                      >
+                        <option value="Particular">Particular / Comprador Personal</option>
+                        <option value="Tienda Física">Tengo Tienda Física / Sala de Ventas</option>
+                        <option value="Redes Sociales">Venta por Redes Sociales / Catálogo</option>
+                        <option value="Revendedor">Revendedor / Venta Ruteada</option>
+                        <option value="Emprendedor">Iniciando negocio de platería</option>
+                      </select>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#f0e6d6] space-y-3">
+                      <label className="flex items-center space-x-2.5 cursor-pointer text-zinc-700 font-bold text-xs p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg">
+                        <input 
+                          type="checkbox" 
+                          checked={datosRegistroMayorista.requiereEnvio}
+                          onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, requiereEnvio: e.target.checked })}
+                          className="rounded border-amber-300 text-amber-700 w-4 h-4"
+                        />
+                        <span>🚚 Requiero envío a domicilio para mis pedidos</span>
+                      </label>
+
+                      {datosRegistroMayorista.requiereEnvio && (
+                        <div>
+                          <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
+                            Dirección Exacta de Entrega (Opcional)
+                          </label>
+                          <input 
+                            type="text" 
+                            placeholder="Calle, avenida, zona, municipio o departamento"
+                            value={datosRegistroMayorista.direccion}
+                            onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, direccion: e.target.value })}
+                            className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <button 
+                      type="submit"
+                      className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3.5 rounded-lg text-xs uppercase tracking-wider transition shadow-md mt-2"
+                    >
+                      SOLICITAR ACCESO MAYORISTA
+                    </button>
+
+                    <button 
+                      type="button"
+                      onClick={() => setVistaActual('login')}
+                      className="w-full text-center text-xs text-zinc-500 hover:text-zinc-800 underline block pt-1"
+                    >
+                      ← Regresar a Iniciar Sesión
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="text-center space-y-4 py-6">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">
+                    ✓
+                  </div>
+                  <h2 className="text-2xl font-serif font-bold text-zinc-900 uppercase">
+                    ¡Solicitud Recibida!
+                  </h2>
+                  <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed">
+                    Gracias <strong className="text-zinc-900">{datosRegistroMayorista.nombreCompleto}</strong>. Evaluaremos tu perfil y te enviaremos tus credenciales de acceso al WhatsApp <strong className="text-zinc-900">{datosRegistroMayorista.telefono}</strong>.
+                  </p>
+                  <div className="pt-4">
+                    <button 
+                      onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }}
+                      className="bg-zinc-900 text-white font-bold py-3 px-8 rounded-lg text-xs uppercase tracking-wider hover:bg-zinc-800 transition"
+                    >
+                      Volver a Iniciar Sesión
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </section>
+        )}
+
+        {/* VISTA: REVISIÓN Y FORMULARIO DE ENVÍO */}
+        {vistaActual === 'revision' && (
+          <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
+            <div className="text-xs text-zinc-500 mb-4 font-serif">
+              Inicio / Mi cuenta / <span className="text-amber-800 font-bold">Revisión de orden y Envío</span>
             </div>
 
-            <div className="border-t border-slate-800 pt-4 flex justify-end gap-3">
-              <button onClick={() => setModalGaleriaAbierto(false)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold uppercase">Cancelar</button>
-              <button 
-                onClick={() => {
-                  setNuevoProd({...nuevoProd, fotos: imagenesSeleccionadasTemp});
-                  setModalGaleriaAbierto(false);
-                }} 
-                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded font-bold uppercase tracking-wider shadow"
-              >
-                Insertar Seleccionadas ({imagenesSeleccionadasTemp.length})
-              </button>
+            <h1 className="text-2xl font-serif uppercase tracking-wider font-bold text-zinc-900 mb-1">DATOS DE ENVÍO Y REVISIÓN</h1>
+            <p className="text-xs text-zinc-500 uppercase tracking-widest mb-8">COMPLETA TUS DATOS DE ENTREGA PARA ENVIAR TU PEDIDO A REVISIÓN</p>
+
+            <form onSubmit={procesarHacerPedido} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4 text-zinc-900">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">1. DATOS DEL CLIENTE</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1">Nombre Completo *</label>
+                      <input type="text" required placeholder="Ej. María López" value={datosEnvio.nombreCompleto} onChange={(e) => setDatosEnvio({ ...datosEnvio, nombreCompleto: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-700 mb-1">Teléfono / WhatsApp *</label>
+                      <input type="text" required placeholder="Ej. 5555-0000" value={datosEnvio.telefono} onChange={(e) => setDatosEnvio({ ...datosEnvio, telefono: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4 text-zinc-900">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">2. MÉTODO DE ENTREGA</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <label className={`p-4 rounded-lg border text-xs cursor-pointer flex items-start space-x-3 transition ${datosEnvio.metodoEntrega === 'envio' ? 'border-amber-600 bg-[#f2e6d3]/40 font-bold' : 'border-[#e5d8c3] bg-[#fcfaf7]'}`}>
+                      <input type="radio" name="entrega" checked={datosEnvio.metodoEntrega === 'envio'} onChange={() => setDatosEnvio({ ...datosEnvio, metodoEntrega: 'envio' })} />
+                      <div>
+                        <span className="block text-zinc-900">🚚 Envío a Domicilio</span>
+                        <span className="text-[11px] text-zinc-500 font-normal">Entrega por mensajería.</span>
+                      </div>
+                    </label>
+                    <label className={`p-4 rounded-lg border text-xs cursor-pointer flex items-start space-x-3 transition ${datosEnvio.metodoEntrega === 'tienda' ? 'border-amber-600 bg-[#f2e6d3]/40 font-bold' : 'border-[#e5d8c3] bg-[#fcfaf7]'}`}>
+                      <input type="radio" name="entrega" checked={datosEnvio.metodoEntrega === 'tienda'} onChange={() => setDatosEnvio({ ...datosEnvio, metodoEntrega: 'tienda' })} />
+                      <div>
+                        <span className="block text-zinc-900">🏬 Recoger en Tienda</span>
+                        <span className="text-[11px] text-zinc-500 font-normal">En nuestra sala de ventas.</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {datosEnvio.metodoEntrega === 'envio' && (
+                    <div className="pt-2 text-xs">
+                      <label className="block font-bold text-zinc-700 mb-1">Dirección Exacta de Entrega *</label>
+                      <input type="text" required={datosEnvio.metodoEntrega === 'envio'} placeholder="Calle, avenida, zona" value={datosEnvio.direccion} onChange={(e) => setDatosEnvio({ ...datosEnvio, direccion: e.target.value })} className="w-full p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg border-l-4 border-l-amber-600 border border-[#e5d8c3] space-y-6 h-fit shadow-xs text-zinc-900">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500">RESUMEN DE LA SOLICITUD</h2>
+                <div className="flex justify-between text-base pt-2 font-bold text-zinc-900">
+                  <span>Total orden:</span>
+                  <span className="text-amber-800">Q{totalMonto.toFixed(2)}</span>
+                </div>
+                <button type="submit" className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3.5 rounded text-xs uppercase tracking-wider transition shadow-md">
+                  HACER PEDIDO
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* VISTA: PANTALLA DE ÉXITO */}
+        {vistaActual === 'confirmado' && (
+          <section className="py-16 max-w-3xl mx-auto px-4 text-center min-h-[65vh] flex items-center justify-center">
+            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+              <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">✓</div>
+              <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase">¡Tu pedido se encuentra en revisión!</h1>
+              <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
+                Orden <strong className="font-mono text-zinc-900">#{numeroOrdenGenerado}</strong> recibida. Confirmaremos existencias a la brevedad.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <button onClick={() => setVistaActual('historial')} className="bg-amber-700 text-white font-bold py-3 px-6 rounded text-xs uppercase">
+                  Ver Historial de Mis Pedidos
+                </button>
+                <button onClick={enviarConfirmacionCliente} className="bg-zinc-900 text-white font-bold py-3 px-6 rounded text-xs uppercase">
+                  Abrir WhatsApp con mi Pedido
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* VENTANA DE DETALLE DE PRODUCTO */}
+      {productoSeleccionadoModal && (
+        <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto text-zinc-900">
+            <button onClick={() => setProductoSeleccionadoModal(null)} className="absolute top-4 right-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold w-8 h-8 rounded-full flex items-center justify-center z-10">✕</button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+              
+              <div className="space-y-3">
+                <div className="aspect-square bg-white rounded-xl overflow-hidden border border-zinc-200">
+                  <img src={productoSeleccionadoModal.fotos[fotoActivaIndex] || productoSeleccionadoModal.fotos[0]} alt="" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {productoSeleccionadoModal.fotos.map((foto: string, idx: number) => (
+                    <button key={idx} onClick={() => setFotoActivaIndex(idx)} className={`w-16 h-16 rounded-lg overflow-hidden border-2 ${fotoActivaIndex === idx ? 'border-amber-600' : 'border-zinc-200'}`}>
+                      <img src={foto} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h2 className="font-serif font-bold text-2xl text-zinc-900">{productoSeleccionadoModal.nombre}</h2>
+                  <p className="text-zinc-500 text-xs mt-1">{productoSeleccionadoModal.descripcion}</p>
+                </div>
+
+                <div className="space-y-1 text-zinc-500 font-mono text-[11px]">
+                  <p><strong className="text-zinc-700">ID:</strong> {productoSeleccionadoModal.sku}</p>
+                  <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
+                </div>
+
+                {esMayorista && clienteMayoristaActivo ? (
+                  <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
+                    <div className="flex justify-between text-zinc-600">
+                      <span>Peso pieza:</span>
+                      <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
+                    </div>
+                    <div className="flex justify-between text-zinc-600">
+                      <span>Precio por gramo asignado:</span>
+                      <strong className="font-mono text-emerald-800">Q{(clienteMayoristaActivo.tarifasPorGramo[productoSeleccionadoModal.categoria] || 36).toFixed(2)} /g</strong>
+                    </div>
+                    <div className="border-t border-amber-200/60 pt-2 flex justify-between items-baseline">
+                      <span className="font-bold text-zinc-700">Precio Total Pieza:</span>
+                      <span className="font-serif font-bold text-2xl text-amber-900">
+                        Q{obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pt-2">
+                    <span className="font-serif font-bold text-3xl text-zinc-900">Q{productoSeleccionadoModal.precioMinorista}.00</span>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-zinc-200 space-y-4">
+                  <p className="text-zinc-600 font-semibold">Seleccione una talla y cantidad:</p>
+                  
+                  <div className="flex items-center space-x-3">
+                    <span className="font-bold text-zinc-700 w-20">Tallas (us)</span>
+                    <div className="flex flex-wrap gap-2">
+                      {productoSeleccionadoModal.variantes.map((v: any) => (
+                        <button
+                          key={v.id}
+                          onClick={() => setVarianteElegida(v)}
+                          className={`w-9 h-9 border rounded font-bold transition flex items-center justify-center ${
+                            varianteElegida?.id === v.id ? 'border-amber-700 bg-amber-50 text-amber-900 font-extrabold ring-2 ring-amber-600/30' : 'border-zinc-300 text-zinc-700 hover:border-zinc-400'
+                          }`}
+                        >
+                          {v.medida}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center space-x-2">
+                      <span>✓</span>
+                      <span>Esta talla ya se encuentra agregada en tu carrito de compras.</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-3 pt-2">
+                    <span className="font-bold text-zinc-700 w-20">Cantidad</span>
+                    <div className="inline-flex items-center border border-zinc-300 rounded bg-zinc-50">
+                      <button onClick={() => setCantidadModal(Math.max(1, cantidadModal - 1))} className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-200 font-bold">◀</button>
+                      <span className="px-4 font-bold text-zinc-800">{cantidadModal}</span>
+                      <button onClick={() => setCantidadModal(cantidadModal + 1)} className="px-3 py-1.5 text-zinc-600 hover:bg-zinc-200 font-bold">▶</button>
+                    </div>
+
+                    <button 
+                      onClick={agregarAlCarritoSilencioso} 
+                      className="flex-1 bg-[#eadcc7] hover:bg-amber-700 hover:text-white text-zinc-900 font-bold text-xs uppercase py-3 rounded tracking-wider transition border border-amber-300/80"
+                    >
+                      {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) ? 'AGREGAR MÁS PIEZAS' : 'AGREGAR A COMPRA'}
+                    </button>
+                  </div>
+                </div>
+
+              </div>
             </div>
 
+            <div className="border-t border-zinc-200 pt-6 space-y-4">
+              <h3 className="font-serif font-bold text-sm uppercase text-zinc-900">También te podría gustar</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {productosSimilares.slice(0, 3).map((prodSim) => (
+                  <div key={prodSim.id} onClick={() => abrirModalDetalle(prodSim)} className="bg-white p-3 rounded-xl border border-zinc-200 cursor-pointer text-center">
+                    <img src={prodSim.fotos[0]} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />
+                    <p className="font-serif font-bold text-xs text-zinc-800 truncate">{prodSim.nombre}</p>
+                    <p className="font-bold text-xs text-amber-800">Q{obtenerPrecioCalculado(prodSim, prodSim.variantes[0]).toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
+
+      {/* PIE DE PÁGINA */}
+      <footer className="bg-[#f0e6d6] text-zinc-800 py-12 border-t border-[#dfcfb9] text-xs mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NOSOTROS</h4>
+            <p className="text-zinc-600 leading-relaxed font-light">{configPortada.nosotrosTexto.slice(0, 90)}...</p>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NAVEGACIÓN</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              <li><button onClick={() => setVistaActual('inicio')} className="hover:text-amber-800">Inicio</button></li>
+              <li><button onClick={() => setVistaActual('categorias')} className="hover:text-amber-800">Categorías</button></li>
+              <li><button onClick={() => setVistaActual('catalogo')} className="hover:text-amber-800">Catálogo</button></li>
+              <li><button onClick={() => setVistaActual('historial')} className="hover:text-amber-800">Mis Pedidos</button></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTAS</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              <li><button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className="hover:text-amber-800">Acceso Mayoristas / Tarifario Gramo</button></li>
+            </ul>
+          </div>
+          <div className="space-y-3">
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">CONTACTO</h4>
+            <ul className="space-y-2 font-light text-zinc-600">
+              {configPortada.direcciones.map((d, i) => <li key={i}>📍 {d}</li>)}
+              {configPortada.telefonos.map((t, i) => <li key={i}>📞 {t}</li>)}
+            </ul>
+          </div>
+        </div>
+      </footer>
 
     </div>
   );

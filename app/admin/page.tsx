@@ -1,9 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 
-// ==========================================
-// BLOQUE DE SEGURIDAD (Pégalo arriba del todo)
-// ==========================================
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
@@ -67,11 +64,36 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* AQUÍ LLAMAS A TU FUNCIÓN O COMPONENTE ORIGINAL DE ADMIN */}
       <AdminDashboard />
     </div>
   );
 }
+
+function AdminDashboard() {
+  const [seccion, setSeccion] = useState('pedidos');
+  const categoriasBase = ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
+  const [clienteDesplegadoId, setClienteDesplegadoId] = useState<number | null>(1);
+  const [adminCredenciales, setAdminCredenciales] = useState({
+    usuario: '',
+    password: ''
+  });
+  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
+  const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
+  const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
+
+  return (
+    <div className="p-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Panel de Administración</h1>
+      <p className="text-gray-600 mb-4">Gestión de inventario y pedidos de tu joyería.</p>
+      
+      <div className="flex gap-4 mb-6">
+        <button onClick={() => setSeccion('pedidos')} className={`px-4 py-2 rounded ${seccion === 'pedidos' ? 'bg-amber-700 text-white' : 'bg-gray-200'}`}>Pedidos</button>
+        <button onClick={() => setSeccion('inventario')} className={`px-4 py-2 rounded ${seccion === 'inventario' ? 'bg-amber-700 text-white' : 'bg-gray-200'}`}>Inventario</button>
+      </div>
+    </div>
+  );
+}
+
 
 import { useState } from 'react';
 

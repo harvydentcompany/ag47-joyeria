@@ -263,6 +263,11 @@ function AdminDashboard() {
     };
   });
 
+  // EFECTO DE GUARDADO AUTOMÁTICO PARA QUE NO SE PIERDAN LOS AJUSTES
+  useEffect(() => {
+    localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
+  }, [portada]);
+
   const guardarConfiguracionPortada = () => {
     localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
     alert('¡Configuración de marca, textos y estilos guardada con éxito y sincronizada con la web!');

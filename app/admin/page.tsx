@@ -3,36 +3,6 @@
 import { useState, useEffect } from 'react';
 
 export default function TiendaPublica() {
-  // ESTADO DE CONFIGURACIÓN DE PORTADA Y MARCA (Sincronizado con Admin vía localStorage)
-  const [configPortada, setConfigPortada] = useState({
-    logoUrl: 'AG47',
-    titulo: 'Colección Mayorista y Minorista',
-    subtitulo: 'Especial de Temporada - Joyería en Plata 925',
-    bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
-    fuenteEstilo: 'font-sans',
-    colorWebPrincipal: '#f59e0b',
-    colorWebFondo: '#faf7f2',
-    colorWebTexto: '#18181b',
-    direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
-    telefonos: ['+502 5555-1234'],
-    redesSociales: {
-      facebook: 'https://facebook.com/ag47joyeria',
-      instagram: 'https://instagram.com/ag47joyeria',
-      tiktok: 'https://tiktok.com/@ag47joyeria',
-      whatsapp: 'https://wa.me/50255551234'
-    },
-    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const guardado = localStorage.getItem('config_portada_ag47');
-      if (guardado) {
-        try { setConfigPortada(JSON.parse(guardado)); } catch(e) {}
-      }
-    }
-  }, []);
-
   const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
 
   // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial' | 'nosotros'
@@ -50,8 +20,12 @@ export default function TiendaPublica() {
   const [varianteElegida, setVarianteElegida] = useState<any>(null);
   const [cantidadModal, setCantidadModal] = useState<number>(1);
 
-  // HISTORIAL DE PEDIDOS DEL CLIENTE (Sincronizado con localStorage)
-  const [misPedidos, setMisPedidos] = useState<any[]>([]);
+  // DATOS DE CONTACTO Y CONFIGURACIÓN EDITABLES DESDE EL ADMIN (Sincronizados)
+  const [infoAdmin, setInfoAdmin] = useState({
+    direcciones: ['Ciudad de Guatemala'],
+    telefonos: ['(+502) 5555-0101'],
+    nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -59,8 +33,23 @@ export default function TiendaPublica() {
       if (guardados) {
         try { setMisPedidos(JSON.parse(guardados)); } catch(e) {}
       }
+
+      const configAdmin = localStorage.getItem('config_portada_ag47');
+      if (configAdmin) {
+        try {
+          const parsed = JSON.parse(configAdmin);
+          setInfoAdmin({
+            direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
+            telefonos: parsed.telefonos || ['(+502) 5555-0101'],
+            nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
+          });
+        } catch(e) {}
+      }
     }
   }, [vistaActual]);
+
+  // HISTORIAL DE PEDIDOS DEL CLIENTE
+  const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
   // DATOS DEL FORMULARIO LOGIN MAYORISTA
   const [loginUsuario, setLoginUsuario] = useState('');
@@ -77,7 +66,7 @@ export default function TiendaPublica() {
       correo: 'maria@eldiamante.com', 
       tipoCliente: 'Tienda Física', 
       estado: 'Autorizado',
-      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39, PulserasDijes: 36 }
+      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39 }
     },
     { 
       id: 2, 
@@ -86,7 +75,7 @@ export default function TiendaPublica() {
       correo: 'carlos@perez.com', 
       tipoCliente: 'Revendedor / Venta Ruteada', 
       estado: 'Pendiente',
-      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35, PulserasDijes: 33 }
+      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35 }
     }
   ]);
 
@@ -407,13 +396,19 @@ export default function TiendaPublica() {
     : [];
 
   return (
-    <div className={`min-h-screen ${configPortada.fuenteEstilo} flex flex-col justify-between`} style={{ backgroundColor: configPortada.colorWebFondo, color: configPortada.colorWebTexto }}>
+    <div className="min-h-screen bg-[#faf7f2] text-zinc-900 font-sans selection:bg-amber-100 flex flex-col justify-between">
       
       <div>
-        {/* BARRA SUPERIOR DE AVISO */}
+        {/* BARRA SUPERIOR DE AVISO CON ACCESO AL ADMIN Y MIS PEDIDOS */}
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-2 items-center">
+            <a 
+              href="/admin" 
+              className="font-mono text-[10px] bg-amber-700 hover:bg-amber-800 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
+            >
+              ⚙️ Ir a Admin
+            </a>
             <button 
               onClick={() => setVistaActual('historial')} 
               className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
@@ -437,16 +432,12 @@ export default function TiendaPublica() {
         </div>
 
         {/* ENCABEZADO */}
-        <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs text-zinc-900">
+        <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
-              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden">
-                {configPortada.logoUrl.startsWith('http') ? (
-                  <img src={configPortada.logoUrl} alt="Logo" className="w-full h-full object-cover" />
-                ) : (
-                  <span>AG</span>
-                )}
+              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300">
+                AG
               </div>
               <div>
                 <span className="font-serif font-bold text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>
@@ -460,7 +451,6 @@ export default function TiendaPublica() {
               <button onClick={() => setVistaActual('inicio')} className={`transition ${vistaActual === 'inicio' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Inicio</button>
               <button onClick={() => setVistaActual('categorias')} className={`transition ${vistaActual === 'categorias' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Categorías</button>
               <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className={`transition ${vistaActual === 'catalogo' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Catálogo</button>
-              <button onClick={() => setVistaActual('nosotros')} className={`transition ${vistaActual === 'nosotros' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Nosotros</button>
               <button onClick={() => setVistaActual('historial')} className={`transition ${vistaActual === 'historial' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Mis Pedidos</button>
               {!esMayorista && (
                 <button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className={`transition ${vistaActual === 'login' || vistaActual === 'registro_mayorista' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-800'}`}>Iniciar Sesión</button>
@@ -500,15 +490,15 @@ export default function TiendaPublica() {
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
                 <div className="max-w-xl space-y-6 text-center md:text-left">
                   <span className="inline-block px-3.5 py-1 bg-[#eadcc7] text-amber-900 text-xs font-semibold rounded-full border border-amber-300 uppercase tracking-widest">
-                    {configPortada.subtitulo}
+                    Colección Plata Ley 925
                   </span>
                   <h1 className="text-4xl sm:text-5xl font-serif font-light text-zinc-900 tracking-wide leading-tight">
-                    {configPortada.titulo}
+                    Distribuidor de <span className="font-semibold text-amber-700 italic">Platería Fina</span>
                   </h1>
                   <p className="text-zinc-600 text-sm font-light leading-relaxed">
                     {esMayorista 
                       ? `Bienvenido/a ${clienteMayoristaActivo?.nombre}. Tu tarifario preferencial por gramo se encuentra activo en todas las joyas.`
-                      : configPortada.nosotrosTexto.slice(0, 140) + '...'
+                      : infoAdmin.nosotrosTexto
                     }
                   </p>
                   <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -522,8 +512,8 @@ export default function TiendaPublica() {
                 </div>
 
                 <div className="relative">
-                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl overflow-hidden">
-                    <img src={configPortada.bannerUrl} alt="Joyería AG47" className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" />
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl">
+                    <img src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800" alt="Joyería AG47" className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" />
                   </div>
                 </div>
               </div>
@@ -546,33 +536,62 @@ export default function TiendaPublica() {
                 ))}
               </div>
             </section>
-          </>
-        )}
 
-        {/* VISTA: NOSOTROS (Editada desde el Admin) */}
-        {vistaActual === 'nosotros' && (
-          <section className="py-16 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[65vh]">
-            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
-              <h1 className="text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wide text-center">Sobre Nosotros</h1>
-              <p className="text-sm text-zinc-700 leading-relaxed font-light text-center">
-                {configPortada.nosotrosTexto}
-              </p>
-              <div className="border-t border-[#f2e7d5] pt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-zinc-600">
-                <div>
-                  <h3 className="font-bold uppercase text-amber-900 mb-2">📍 Sucursales / Direcciones</h3>
-                  <ul className="space-y-1">
-                    {configPortada.direcciones.map((dir, i) => <li key={i}>• {dir}</li>)}
-                  </ul>
+            <section className="py-12 bg-white border-t border-[#ebd9c1]">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-end mb-8 border-b border-[#ebd9c1] pb-4">
+                  <div>
+                    <span className="text-xs font-mono uppercase text-amber-800 font-bold">Colección Reciente</span>
+                    <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Nuevos Ingresos</h2>
+                  </div>
+                  <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver Todo el Catálogo →</button>
                 </div>
-                <div>
-                  <h3 className="font-bold uppercase text-amber-900 mb-2">📞 Teléfonos de Contacto</h3>
-                  <ul className="space-y-1">
-                    {configPortada.telefonos.map((tel, i) => <li key={i}>• {tel}</li>)}
-                  </ul>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                  {productos.map((prod) => {
+                    const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
+                    const pesoBase = prod.variantes[0]?.peso || 0;
+                    const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                    const enCarrito = estaEnCarrito(prod.id);
+
+                    return (
+                      <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                        <div>
+                          <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
+                            <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                            
+                            <div className="absolute top-3 left-3 flex flex-col gap-1">
+                              {prod.esNuevo && <span className="bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">Nuevo</span>}
+                              {enCarrito && <span className="bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">✓ En Carrito</span>}
+                            </div>
+                          </div>
+                          <div className="p-4 space-y-1">
+                            <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
+                            <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                          </div>
+                        </div>
+
+                        <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
+                          {esMayorista ? (
+                            <div className="flex flex-col py-1">
+                              <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                              <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                              <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
+                            </div>
+                          )}
+                          <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </>
         )}
 
         {/* VISTA: HISTORIAL DE PEDIDOS */}
@@ -595,7 +614,7 @@ export default function TiendaPublica() {
             ) : (
               <div className="space-y-4">
                 {misPedidos.map((ped) => (
-                  <div key={ped.id} className="bg-white rounded-xl border border-[#e5d8c3] p-5 shadow-xs space-y-4 text-xs text-zinc-900">
+                  <div key={ped.id} className="bg-white rounded-xl border border-[#e5d8c3] p-5 shadow-xs space-y-4 text-xs">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#f2e7d5] pb-3">
                       <div>
                         <div className="flex items-center space-x-2">
@@ -738,7 +757,7 @@ export default function TiendaPublica() {
             </div>
 
             <div className="bg-white rounded-lg border border-[#e5d8c3] overflow-x-auto shadow-xs">
-              <table className="w-full text-left text-xs font-sans text-zinc-900">
+              <table className="w-full text-left text-xs font-sans">
                 <thead className="bg-[#f2ece1] border-b border-[#e5d8c3] text-zinc-600 font-bold uppercase">
                   <tr>
                     <th className="py-3 px-4 w-12 text-center">N°</th>
@@ -813,10 +832,10 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: LOGIN MAYORISTA */}
+        {/* VISTA: INICIAR SESIÓN MAYORISTA */}
         {vistaActual === 'login' && (
           <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
-            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
               
               <div className="text-center space-y-2">
                 <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wide">
@@ -903,10 +922,10 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: REGISTRO MAYORISTA */}
+        {/* VISTA: REGISTRO DE NUEVO CLIENTE MAYORISTA */}
         {vistaActual === 'registro_mayorista' && (
           <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
-            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+            <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
               
               {!solicitudEnviada ? (
                 <>
@@ -1059,7 +1078,7 @@ export default function TiendaPublica() {
 
             <form onSubmit={procesarHacerPedido} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4 text-zinc-900">
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">1. DATOS DEL CLIENTE</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
@@ -1073,7 +1092,7 @@ export default function TiendaPublica() {
                   </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4 text-zinc-900">
+                <div className="bg-white p-6 rounded-lg border border-[#e5d8c3] space-y-4">
                   <h2 className="text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-[#f2e7d5] pb-2">2. MÉTODO DE ENTREGA</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className={`p-4 rounded-lg border text-xs cursor-pointer flex items-start space-x-3 transition ${datosEnvio.metodoEntrega === 'envio' ? 'border-amber-600 bg-[#f2e6d3]/40 font-bold' : 'border-[#e5d8c3] bg-[#fcfaf7]'}`}>
@@ -1101,7 +1120,7 @@ export default function TiendaPublica() {
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-lg border-l-4 border-l-amber-600 border border-[#e5d8c3] space-y-6 h-fit shadow-xs text-zinc-900">
+              <div className="bg-white p-6 rounded-lg border-l-4 border-l-amber-600 border border-[#e5d8c3] space-y-6 h-fit shadow-xs">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500">RESUMEN DE LA SOLICITUD</h2>
                 <div className="flex justify-between text-base pt-2 font-bold text-zinc-900">
                   <span>Total orden:</span>
@@ -1118,7 +1137,7 @@ export default function TiendaPublica() {
         {/* VISTA: PANTALLA DE ÉXITO */}
         {vistaActual === 'confirmado' && (
           <section className="py-16 max-w-3xl mx-auto px-4 text-center min-h-[65vh] flex items-center justify-center">
-            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6 text-zinc-900">
+            <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
               <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">✓</div>
               <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase">¡Tu pedido se encuentra en revisión!</h1>
               <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
@@ -1140,7 +1159,7 @@ export default function TiendaPublica() {
       {/* VENTANA DE DETALLE DE PRODUCTO */}
       {productoSeleccionadoModal && (
         <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto text-zinc-900">
+          <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setProductoSeleccionadoModal(null)} className="absolute top-4 right-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold w-8 h-8 rounded-full flex items-center justify-center z-10">✕</button>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
@@ -1255,12 +1274,12 @@ export default function TiendaPublica() {
         </div>
       )}
 
-      {/* PIE DE PÁGINA */}
+      {/* PIE DE PÁGINA CON DATOS SINCRONIZADOS DEL ADMIN Y ACCESO DIRECTO */}
       <footer className="bg-[#f0e6d6] text-zinc-800 py-12 border-t border-[#dfcfb9] text-xs mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NOSOTROS</h4>
-            <p className="text-zinc-600 leading-relaxed font-light">{configPortada.nosotrosTexto.slice(0, 90)}...</p>
+            <p className="text-zinc-600 leading-relaxed font-light">{infoAdmin.nosotrosTexto}</p>
           </div>
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NAVEGACIÓN</h4>
@@ -1269,6 +1288,7 @@ export default function TiendaPublica() {
               <li><button onClick={() => setVistaActual('categorias')} className="hover:text-amber-800">Categorías</button></li>
               <li><button onClick={() => setVistaActual('catalogo')} className="hover:text-amber-800">Catálogo</button></li>
               <li><button onClick={() => setVistaActual('historial')} className="hover:text-amber-800">Mis Pedidos</button></li>
+              <li><a href="/admin" className="text-amber-900 font-bold hover:underline">⚙️ Panel Admin</a></li>
             </ul>
           </div>
           <div className="space-y-3">
@@ -1280,8 +1300,8 @@ export default function TiendaPublica() {
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">CONTACTO</h4>
             <ul className="space-y-2 font-light text-zinc-600">
-              {configPortada.direcciones.map((d, i) => <li key={i}>📍 {d}</li>)}
-              {configPortada.telefonos.map((t, i) => <li key={i}>📞 {t}</li>)}
+              {infoAdmin.direcciones.map((d, idx) => <li key={idx}>📍 {d}</li>)}
+              {infoAdmin.telefonos.map((t, idx) => <li key={idx}>📞 {t}</li>)}
             </ul>
           </div>
         </div>

@@ -13,7 +13,7 @@ export default function AdminPage() {
     }
   }, []);
 
-  const handleLogin = (e) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'Yaosalazar1986@') {
       localStorage.setItem('admin_auth', 'true');
@@ -51,53 +51,24 @@ export default function AdminPage() {
 
   return (
     <div>
-      <div className="p-4 bg-gray-50 flex justify-between items-center border-b">
-        <span className="text-sm font-medium text-gray-600">Sesión de Administrador Segura</span>
+      <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-xs">
+        <span className="text-slate-400">Sesión de Administrador Segura</span>
         <button 
           onClick={() => {
             localStorage.removeItem('admin_auth');
             setIsAuthenticated(false);
           }}
-          className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700 transition"
+          className="bg-red-600 text-white px-3 py-1.5 rounded font-bold hover:bg-red-500 transition"
         >
           Cerrar Sesión
         </button>
       </div>
-
       <AdminDashboard />
     </div>
   );
 }
 
 function AdminDashboard() {
-  const [seccion, setSeccion] = useState('pedidos');
-  const categoriasBase = ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
-  const [clienteDesplegadoId, setClienteDesplegadoId] = useState<number | null>(1);
-  const [adminCredenciales, setAdminCredenciales] = useState({
-    usuario: '',
-    password: ''
-  });
-  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
-  const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
-  const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
-
-  return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Panel de Administración</h1>
-      <p className="text-gray-600 mb-4">Gestión de inventario y pedidos de tu joyería.</p>
-      
-      <div className="flex gap-4 mb-6">
-        <button onClick={() => setSeccion('pedidos')} className={`px-4 py-2 rounded ${seccion === 'pedidos' ? 'bg-amber-700 text-white' : 'bg-gray-200'}`}>Pedidos</button>
-        <button onClick={() => setSeccion('inventario')} className={`px-4 py-2 rounded ${seccion === 'inventario' ? 'bg-amber-700 text-white' : 'bg-gray-200'}`}>Inventario</button>
-      </div>
-    </div>
-  );
-}
-
-
-import { useState } from 'react';
-
-export default function AdminDashboard() {
   const [seccion, setSeccion] = useState('pedidos');
 
   // Categorías fijas del catálogo
@@ -128,7 +99,7 @@ export default function AdminDashboard() {
   ]);
 
   // ESTADO MODAL SELECTOR DE DRIVE / GALERÍA
-  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useStat e(false);
+  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
   const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
 
@@ -1048,4 +1019,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

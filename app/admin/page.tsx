@@ -1,4 +1,77 @@
 'use client';
+import { useState, useEffect } from 'react';
+
+// ==========================================
+// BLOQUE DE SEGURIDAD (Pégalo arriba del todo)
+// ==========================================
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const auth = localStorage.getItem('admin_auth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (password === 'Yaosalazar1986@') {
+      localStorage.setItem('admin_auth', 'true');
+      setIsAuthenticated(true);
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-amber-50">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-xl shadow-lg w-96 border border-amber-100">
+          <h2 className="text-2xl font-bold mb-6 text-center text-amber-900">Panel Admin AG47</h2>
+          {error && <p className="text-red-500 text-sm mb-4 text-center font-medium">Contraseña incorrecta</p>}
+          <input 
+            type="password" 
+            placeholder="Introduce tu contraseña" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-amber-600"
+            required
+          />
+          <button 
+            type="submit" 
+            className="w-full bg-amber-700 text-white p-3 rounded-lg font-semibold hover:bg-amber-800 transition"
+          >
+            Ingresar
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="p-4 bg-gray-50 flex justify-between items-center border-b">
+        <span className="text-sm font-medium text-gray-600">Sesión de Administrador Segura</span>
+        <button 
+          onClick={() => {
+            localStorage.removeItem('admin_auth');
+            setIsAuthenticated(false);
+          }}
+          className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700 transition"
+        >
+          Cerrar Sesión
+        </button>
+      </div>
+
+      {/* AQUÍ LLAMAS A TU FUNCIÓN O COMPONENTE ORIGINAL DE ADMIN */}
+      <AdminDashboard />
+    </div>
+  );
+}
 
 import { useState } from 'react';
 
@@ -33,7 +106,7 @@ export default function AdminDashboard() {
   ]);
 
   // ESTADO MODAL SELECTOR DE DRIVE / GALERÍA
-  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
+  const [modalGaleriaAbierto, setModalGaleriaAbierto] = useStat e(false);
   const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
 

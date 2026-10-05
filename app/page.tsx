@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function TiendaPublica() {
   const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
@@ -45,7 +46,7 @@ export default function TiendaPublica() {
       variantes: [
         { id: 'v1', medida: '5', peso: 2.3, stock: 5 },
         { id: 'v2', medida: '6', peso: 2.5, stock: 8 },
-        { id: 'v3', medida: '7', peso: 2.7, stock: 0 } // Ejemplo con variante agotada
+        { id: 'v3', medida: '7', peso: 2.7, stock: 0 }
       ]
     },
     {
@@ -103,13 +104,11 @@ export default function TiendaPublica() {
   // SINCRONIZACIÓN AUTOMÁTICA CON LOCALSTORAGE (Admin <-> Tienda)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // 1. Cargar Pedidos
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
       if (guardadosPedidos) {
         try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
       }
 
-      // 2. Cargar Información Institucional editada en Admin
       const configAdmin = localStorage.getItem('config_portada_ag47');
       if (configAdmin) {
         try {
@@ -122,7 +121,6 @@ export default function TiendaPublica() {
         } catch(e) {}
       }
 
-      // 3. Cargar Inventario / Productos actualizados por el Admin
       const stockAdmin = localStorage.getItem('ag47_inventario_admin');
       if (stockAdmin) {
         try {
@@ -194,7 +192,6 @@ export default function TiendaPublica() {
     { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
   ]);
 
-  // FUNCIÓN PARA VERIFICAR SI UN PRODUCTO TIENE STOCK TOTAL DISPONIBLE
   const calcularStockTotalProducto = (prod: any) => {
     if (!prod.variantes || prod.variantes.length === 0) return 0;
     return prod.variantes.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0);
@@ -225,7 +222,6 @@ export default function TiendaPublica() {
   const abrirModalDetalle = (prod: any) => {
     setProductoSeleccionadoModal(prod);
     setFotoActivaIndex(0);
-    // Seleccionar por defecto la primera variante que tenga stock mayor a 0 si existe
     const primeraDisponible = prod.variantes.find((v: any) => (v.stock || 0) > 0) || prod.variantes[0] || null;
     setVarianteElegida(primeraDisponible);
     setCantidadModal(1);
@@ -303,8 +299,8 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-  // PROCESAR PEDIDO Y ENVIARLO AL PANEL DE ADMINISTRACIÓN
-  const procesarHacerPedido = (e: React.FormEvent) => {
+  // PROCESAR PEDIDO Y ENVIARLO A SUPABASE Y AL ADMIN
+  const procesarHacerPedido = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!datosEnvio.nombreCompleto || !datosEnvio.telefono) {
@@ -320,6 +316,15 @@ export default function TiendaPublica() {
     const numOrden = Math.floor(1000 + Math.random() * 9000);
     const numOrdenStr = numOrden.toString();
     setNumeroOrdenGenerado(numOrdenStr);
+
+    // 1. Guardar cliente en Supabase
+    await supabase.from('clientes').insert([
+      {
+        nombre: datosEnvio.nombreCompleto,
+        telefono: datosEnvio.telefono,
+        tipo: esMayorista ? 'Mayorista' : 'Minorista'
+      }
+    ]);
 
     const nuevoPedidoWeb = {
       id: numOrden,
@@ -339,7 +344,14 @@ export default function TiendaPublica() {
       }))
     };
 
-    // GUARDAR EN LOCALSTORAGE PARA QUE APAREZCA INMEDIATAMENTE EN EL ADMIN
+    // 2. Guardar pedido en Supabase
+    await supabase.from('pedidos').insert([
+      {
+        id_orden: numOrden,
+        datos_pedido: nuevoPedidoWeb
+      }
+    ]);
+
     const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
     const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
     localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
@@ -384,10 +396,29 @@ export default function TiendaPublica() {
     setVistaActual('inicio');
   };
 
-  const enviarRegistroMayorista = (e: React.FormEvent) => {
+  // ENVIAR SOLICITUD MAYORISTA A SUPABASE
+  const enviarRegistroMayorista = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!datosRegistroMayorista.nombreCompleto || !datosRegistroMayorista.telefono) {
       alert('Por favor completa tu nombre y número de teléfono.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('mayoristas')
+      .insert([
+        {
+          nombre: datosRegistroMayorista.nombreCompleto,
+          telefono: datosRegistroMayorista.telefono,
+          correo: datosRegistroMayorista.correo || 'No proporcionado',
+          tipo_cliente: datosRegistroMayorista.tipoCliente || 'Particular',
+          estado: 'Pendiente'
+        }
+      ]);
+
+    if (error) {
+      console.error('Error al guardar solicitud en Supabase:', error);
+      alert('Hubo un error al enviar tu solicitud. Inténtalo de nuevo.');
       return;
     }
 

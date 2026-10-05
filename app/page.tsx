@@ -5,10 +5,8 @@ import { useState, useEffect } from 'react';
 export default function TiendaPublica() {
   const [textoBarraAviso] = useState('✨ ENVÍOS A TODA GUATEMALA | JOYERÍA FINA EN PLATA LEY 925 ✨');
 
-  // VISTAS DISPONIBLES: 'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'
   const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'>('inicio');
   
-  // ESTADO DE SESIÓN MAYORISTA
   const [esMayorista, setEsMayorista] = useState(false);
   const [clienteMayoristaActivo, setClienteMayoristaActivo] = useState<any>(null);
 
@@ -20,84 +18,17 @@ export default function TiendaPublica() {
   const [varianteElegida, setVarianteElegida] = useState<any>(null);
   const [cantidadModal, setCantidadModal] = useState<number>(1);
 
-  // HISTORIAL DE PEDIDOS DEL CLIENTE (Sincronizado con localStorage)
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const guardados = localStorage.getItem('ag47_pedidos_admin');
-      if (guardados) {
-        try { setMisPedidos(JSON.parse(guardados)); } catch(e) {}
-      }
-    }
-  }, [vistaActual]);
-
-  // DATOS DEL FORMULARIO LOGIN MAYORISTA
-  const [loginUsuario, setLoginUsuario] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginRecordar, setLoginRecordar] = useState(false);
-  const [cargandoLogin, setCargandoLogin] = useState(false);
-
-  // BASE DE DATOS DE MAYORISTAS
-  const [listaMayoristas, setListaMayoristas] = useState([
-    { 
-      id: 1, 
-      nombre: 'María López', 
-      telefono: '5555-1122', 
-      correo: 'maria@eldiamante.com', 
-      tipoCliente: 'Tienda Física', 
-      estado: 'Autorizado',
-      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39 }
-    },
-    { 
-      id: 2, 
-      nombre: 'Carlos Pérez', 
-      telefono: '5555-3344', 
-      correo: 'carlos@perez.com', 
-      tipoCliente: 'Revendedor / Venta Ruteada', 
-      estado: 'Pendiente',
-      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35 }
-    }
-  ]);
-
-  // DATOS DEL FORMULARIO REGISTRO MAYORISTA
-  const [datosRegistroMayorista, setDatosRegistroMayorista] = useState({
-    nombreCompleto: '',
-    telefono: '',
-    correo: '',
-    tipoCliente: 'Particular',
-    requiereEnvio: false,
-    direccion: ''
-  });
-  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
-
-  // DATOS DEL CLIENTE PARA ENVÍO Y PAGO
-  const [datosEnvio, setDatosEnvio] = useState({
-    nombreCompleto: '',
-    telefono: '',
-    correo: '',
-    direccion: '',
-    departamento: 'Guatemala',
-    metodoEntrega: 'envio',
-    metodoPago: 'contraentrega',
-    notaPedido: ''
+  // DATOS DE CONFIGURACIÓN INSTITUCIONAL EDITABLES DESDE EL ADMIN
+  const [infoAdmin, setInfoAdmin] = useState({
+    direcciones: ['Ciudad de Guatemala'],
+    telefonos: ['(+502) 5555-0101'],
+    nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
   });
 
-  const [medioConfirmacion, setMedioConfirmacion] = useState<'whatsapp' | 'correo'>('whatsapp');
-  const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
-
-  // LISTADO DE CATEGORÍAS
-  const [todasLasCategorias] = useState([
-    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
-    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
-    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
-    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
-    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
-    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
-  ]);
-
-  // CATÁLOGO DE PRODUCTOS CON PESO
-  const [productos] = useState([
+  // INVENTARIO DINÁMICO (Sincronizado con el stock y productos del Admin)
+  const [productos, setProductos] = useState([
     {
       id: 101,
       sku: '24665-38850',
@@ -114,7 +45,7 @@ export default function TiendaPublica() {
       variantes: [
         { id: 'v1', medida: '5', peso: 2.3, stock: 5 },
         { id: 'v2', medida: '6', peso: 2.5, stock: 8 },
-        { id: 'v3', medida: '7', peso: 2.7, stock: 4 }
+        { id: 'v3', medida: '7', peso: 2.7, stock: 0 } // Ejemplo con variante agotada
       ]
     },
     {
@@ -169,7 +100,106 @@ export default function TiendaPublica() {
     }
   ]);
 
-  // VERIFICA SI UN PRODUCTO O VARIANTE YA ESTÁ EN EL CARRITO
+  // SINCRONIZACIÓN AUTOMÁTICA CON LOCALSTORAGE (Admin <-> Tienda)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // 1. Cargar Pedidos
+      const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
+      if (guardadosPedidos) {
+        try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
+      }
+
+      // 2. Cargar Información Institucional editada en Admin
+      const configAdmin = localStorage.getItem('config_portada_ag47');
+      if (configAdmin) {
+        try {
+          const parsed = JSON.parse(configAdmin);
+          setInfoAdmin({
+            direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
+            telefonos: parsed.telefonos || ['(+502) 5555-0101'],
+            nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
+          });
+        } catch(e) {}
+      }
+
+      // 3. Cargar Inventario / Productos actualizados por el Admin
+      const stockAdmin = localStorage.getItem('ag47_inventario_admin');
+      if (stockAdmin) {
+        try {
+          const parsedStock = JSON.parse(stockAdmin);
+          if (Array.isArray(parsedStock) && parsedStock.length > 0) {
+            setProductos(parsedStock);
+          }
+        } catch(e) {}
+      }
+    }
+  }, [vistaActual]);
+
+  const [loginUsuario, setLoginUsuario] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginRecordar, setLoginRecordar] = useState(false);
+  const [cargandoLogin, setCargandoLogin] = useState(false);
+
+  const [listaMayoristas, setListaMayoristas] = useState([
+    { 
+      id: 1, 
+      nombre: 'María López', 
+      telefono: '5555-1122', 
+      correo: 'maria@eldiamante.com', 
+      tipoCliente: 'Tienda Física', 
+      estado: 'Autorizado',
+      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39 }
+    },
+    { 
+      id: 2, 
+      nombre: 'Carlos Pérez', 
+      telefono: '5555-3344', 
+      correo: 'carlos@perez.com', 
+      tipoCliente: 'Revendedor / Venta Ruteada', 
+      estado: 'Pendiente',
+      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35 }
+    }
+  ]);
+
+  const [datosRegistroMayorista, setDatosRegistroMayorista] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    tipoCliente: 'Particular',
+    requiereEnvio: false,
+    direccion: ''
+  });
+  const [solicitudEnviada, setSolicitudEnviada] = useState(false);
+
+  const [datosEnvio, setDatosEnvio] = useState({
+    nombreCompleto: '',
+    telefono: '',
+    correo: '',
+    direccion: '',
+    departamento: 'Guatemala',
+    metodoEntrega: 'envio',
+    metodoPago: 'contraentrega',
+    notaPedido: ''
+  });
+
+  const [medioConfirmacion] = useState<'whatsapp' | 'correo'>('whatsapp');
+  const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
+
+  const [todasLasCategorias] = useState([
+    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
+  ]);
+
+  // FUNCIÓN PARA VERIFICAR SI UN PRODUCTO TIENE STOCK TOTAL DISPONIBLE
+  const calcularStockTotalProducto = (prod: any) => {
+    if (!prod.variantes || prod.variantes.length === 0) return 0;
+    return prod.variantes.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0);
+  };
+
   const estaEnCarrito = (productoId: number, varianteId?: string) => {
     if (varianteId) {
       return carrito.some(item => item.id === `${productoId}-${varianteId}`);
@@ -177,7 +207,6 @@ export default function TiendaPublica() {
     return carrito.some(item => item.productoId === productoId);
   };
 
-  // CÁLCULO DE PRECIO AUTOMÁTICO SEGÚN TIPO DE USUARIO
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
       const tarifaGramo = clienteMayoristaActivo.tarifasPorGramo[producto.categoria] || 36;
@@ -196,11 +225,12 @@ export default function TiendaPublica() {
   const abrirModalDetalle = (prod: any) => {
     setProductoSeleccionadoModal(prod);
     setFotoActivaIndex(0);
-    setVarianteElegida(prod.variantes[0] || null);
+    // Seleccionar por defecto la primera variante que tenga stock mayor a 0 si existe
+    const primeraDisponible = prod.variantes.find((v: any) => (v.stock || 0) > 0) || prod.variantes[0] || null;
+    setVarianteElegida(primeraDisponible);
     setCantidadModal(1);
   };
 
-  // ABRIR EL MODAL DE DETALLE DESDE EL CARRITO
   const verProductoDesdeCarrito = (productoId: number) => {
     const productoEncontrado = productos.find(p => p.id === productoId);
     if (productoEncontrado) {
@@ -210,6 +240,11 @@ export default function TiendaPublica() {
 
   const agregarAlCarritoSilencioso = () => {
     if (!productoSeleccionadoModal || !varianteElegida) return;
+
+    if ((varianteElegida.stock || 0) <= 0) {
+      alert('Lo sentimos, esta talla se encuentra AGOTADA actualmente.');
+      return;
+    }
 
     const precioCalculado = obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida);
 
@@ -222,12 +257,18 @@ export default function TiendaPublica() {
       pesoUnitario: varianteElegida.peso,
       precio: precioCalculado,
       foto: productoSeleccionadoModal.fotos[0],
-      cantidad: cantidadModal
+      cantidad: cantidadModal,
+      stockMaximo: varianteElegida.stock
     };
 
     const existe = carrito.find(item => item.id === itemEnCarrito.id);
     if (existe) {
-      setCarrito(carrito.map(item => item.id === itemEnCarrito.id ? { ...item, cantidad: item.cantidad + cantidadModal } : item));
+      const nuevaCantidadTotal = existe.cantidad + cantidadModal;
+      if (nuevaCantidadTotal > varianteElegida.stock) {
+        alert(`No puedes agregar más de ${varianteElegida.stock} unidades disponibles en inventario.`);
+        return;
+      }
+      setCarrito(carrito.map(item => item.id === itemEnCarrito.id ? { ...item, cantidad: nuevaCantidadTotal } : item));
     } else {
       setCarrito([...carrito, itemEnCarrito]);
     }
@@ -239,6 +280,10 @@ export default function TiendaPublica() {
     setCarrito(carrito.map(item => {
       if (item.id === id) {
         const nuevaCant = item.cantidad + cambio;
+        if (item.stockMaximo && nuevaCant > item.stockMaximo) {
+          alert('Has alcanzado el límite de stock disponible para esta variante.');
+          return item;
+        }
         return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : item;
       }
       return item;
@@ -258,7 +303,7 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-  // PROCESAR Y SINCRONIZAR PEDIDO CON LOCALSTORAGE PARA EL PANEL ADMIN E HISTORIAL
+  // PROCESAR PEDIDO Y ENVIARLO AL PANEL DE ADMINISTRACIÓN
   const procesarHacerPedido = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -273,9 +318,9 @@ export default function TiendaPublica() {
     }
 
     const numOrden = Math.floor(1000 + Math.random() * 9000);
-    setNumeroOrdenGenerado(numOrden.toString());
+    const numOrdenStr = numOrden.toString();
+    setNumeroOrdenGenerado(numOrdenStr);
 
-    // CREAR EL OBJETO DE PEDIDO
     const nuevoPedidoWeb = {
       id: numOrden,
       cliente: datosEnvio.nombreCompleto,
@@ -294,7 +339,7 @@ export default function TiendaPublica() {
       }))
     };
 
-    // OBTENER PEDIDOS EXISTENTES DE LOCALSTORAGE E INSERTAR EL NUEVO
+    // GUARDAR EN LOCALSTORAGE PARA QUE APAREZCA INMEDIATAMENTE EN EL ADMIN
     const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
     const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
     localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
@@ -305,19 +350,14 @@ export default function TiendaPublica() {
   };
 
   const enviarConfirmacionCliente = () => {
-    if (medioConfirmacion === 'whatsapp') {
-      let mensaje = `Hola AG47, mi nombre es *${datosEnvio.nombreCompleto}*.\n`;
-      mensaje += `Acabo de realizar el pedido *#${numeroOrdenGenerado}* en la página web.\n\n`;
-      mensaje += `Quedo a la espera de su confirmación de disponibilidad para proceder. ¡Muchas gracias!`;
+    let mensaje = `Hola AG47, mi nombre es *${datosEnvio.nombreCompleto}*.\n`;
+    mensaje += `Acabo de realizar el pedido *#${numeroOrdenGenerado}* en la página web.\n\n`;
+    mensaje += `Quedo a la espera de su confirmación de disponibilidad. ¡Muchas gracias!`;
 
-      const url = `https://wa.me/50255550101?text=${encodeURIComponent(mensaje)}`;
-      window.open(url, '_blank');
-    } else {
-      alert(`Se ha enviado la solicitud de confirmación de la orden #${numeroOrdenGenerado} al correo ${datosEnvio.correo || 'registrado'}.`);
-    }
+    const url = `https://wa.me/50255550101?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
   };
 
-  // LOGIN MAYORISTA
   const ejecutarLoginMayorista = (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsuario) return alert('Por favor ingresa tu usuario.');
@@ -326,10 +366,6 @@ export default function TiendaPublica() {
 
     if (usuarioEncontrado && usuarioEncontrado.estado === 'Pendiente') {
       return alert('Tu cuenta aún se encuentra PENDIENTE DE REVISIÓN.');
-    }
-
-    if (usuarioEncontrado && usuarioEncontrado.estado === 'Suspendido') {
-      return alert('Tu cuenta ha sido SUSPENDIDA. Contacta a soporte.');
     }
 
     setCargandoLogin(true);
@@ -383,7 +419,6 @@ export default function TiendaPublica() {
     <div className="min-h-screen bg-[#faf7f2] text-zinc-900 font-sans selection:bg-amber-100 flex flex-col justify-between">
       
       <div>
-        {/* BARRA SUPERIOR DE AVISO CON INDICADOR DE SESIÓN */}
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
           <div className="flex gap-3 items-center">
@@ -409,7 +444,6 @@ export default function TiendaPublica() {
           </div>
         </div>
 
-        {/* ENCABEZADO */}
         <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
@@ -461,7 +495,6 @@ export default function TiendaPublica() {
           </div>
         </header>
 
-        {/* VISTA: INICIO */}
         {vistaActual === 'inicio' && (
           <>
             <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
@@ -476,7 +509,7 @@ export default function TiendaPublica() {
                   <p className="text-zinc-600 text-sm font-light leading-relaxed">
                     {esMayorista 
                       ? `Bienvenido/a ${clienteMayoristaActivo?.nombre}. Tu tarifario preferencial por gramo se encuentra activo en todas las joyas.`
-                      : 'Explora nuestras colecciones exclusivas. Consulta productos al detalle por categorías o solicita tu acceso a precios mayoristas.'
+                      : infoAdmin.nosotrosTexto
                     }
                   </p>
                   <div className="pt-2 flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -530,17 +563,18 @@ export default function TiendaPublica() {
                     const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                     const pesoBase = prod.variantes[0]?.peso || 0;
                     const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
-                    const enCarrito = estaEnCarrito(prod.id);
+                    const stockTotal = calcularStockTotalProducto(prod);
+                    const estaAgotadoTotal = stockTotal <= 0;
 
                     return (
-                      <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                      <div key={prod.id} className={`bg-[#fcfaf7] rounded-xl border overflow-hidden flex flex-col justify-between transition shadow-xs cursor-pointer relative ${estaAgotadoTotal ? 'opacity-75 border-zinc-300' : 'border-[#ebdcc2] hover:border-amber-500'}`} onClick={() => abrirModalDetalle(prod)}>
                         <div>
                           <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
-                            <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                            <img src={prod.fotos[0]} alt={prod.nombre} className={`w-full h-full object-cover transition duration-500 ${estaAgotadoTotal ? 'grayscale' : 'group-hover:scale-105'}`} />
                             
                             <div className="absolute top-3 left-3 flex flex-col gap-1">
-                              {prod.esNuevo && <span className="bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">Nuevo</span>}
-                              {enCarrito && <span className="bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">✓ En Carrito</span>}
+                              {prod.esNuevo && !estaAgotadoTotal && <span className="bg-amber-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">Nuevo</span>}
+                              {estaAgotadoTotal && <span className="bg-rose-700 text-white text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded shadow-md">AGOTADO</span>}
                             </div>
                           </div>
                           <div className="p-4 space-y-1">
@@ -549,7 +583,6 @@ export default function TiendaPublica() {
                           </div>
                         </div>
 
-                        {/* DESGLOSE DIFERENCIADO ENTRE PÚBLICO Y MAYORISTA */}
                         <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
                           {esMayorista ? (
                             <div className="flex flex-col py-1">
@@ -562,7 +595,9 @@ export default function TiendaPublica() {
                               <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
                             </div>
                           )}
-                          <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                          <button className={`font-bold text-xs px-3 py-1.5 rounded transition ${estaAgotadoTotal ? 'bg-zinc-200 text-zinc-500' : 'bg-zinc-900 hover:bg-amber-700 text-white'}`}>
+                            {estaAgotadoTotal ? 'Agotado' : 'Ver Joya'}
+                          </button>
                         </div>
                       </div>
                     );
@@ -573,7 +608,6 @@ export default function TiendaPublica() {
           </>
         )}
 
-        {/* VISTA: HISTORIAL DE PEDIDOS */}
         {vistaActual === 'historial' && (
           <section className="py-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
             <div className="text-xs text-zinc-500 mb-4 font-serif">
@@ -604,7 +638,6 @@ export default function TiendaPublica() {
                         <p className="text-zinc-400 text-[11px] mt-0.5">Fecha de solicitud: {ped.fecha}</p>
                       </div>
 
-                      {/* ETIQUETA DINÁMICA DE ESTADO */}
                       <div>
                         <span className={`px-3 py-1 rounded-full font-bold text-[11px] uppercase tracking-wider ${
                           ped.estado === 'Pendiente de revisar' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
@@ -635,7 +668,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: CATEGORÍAS */}
         {vistaActual === 'categorias' && (
           <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-white p-8 rounded-2xl border border-[#eadecd] shadow-xs mb-10 text-center">
@@ -656,7 +688,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: CATÁLOGO DE PRODUCTOS */}
         {vistaActual === 'catalogo' && (
           <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-[#ebd9c1] pb-6 gap-4">
@@ -676,16 +707,17 @@ export default function TiendaPublica() {
                 const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                 const pesoBase = prod.variantes[0]?.peso || 0;
                 const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
-                const enCarrito = estaEnCarrito(prod.id);
+                const stockTotal = calcularStockTotalProducto(prod);
+                const estaAgotadoTotal = stockTotal <= 0;
 
                 return (
-                  <div key={prod.id} className="bg-[#fcfaf7] rounded-xl border border-[#ebdcc2] overflow-hidden flex flex-col justify-between group hover:border-amber-500 transition shadow-xs cursor-pointer relative" onClick={() => abrirModalDetalle(prod)}>
+                  <div key={prod.id} className={`bg-[#fcfaf7] rounded-xl border overflow-hidden flex flex-col justify-between transition shadow-xs cursor-pointer relative ${estaAgotadoTotal ? 'opacity-75 border-zinc-300' : 'border-[#ebdcc2] hover:border-amber-500'}`} onClick={() => abrirModalDetalle(prod)}>
                     <div>
                       <div className="relative aspect-square overflow-hidden bg-[#f3ece0]">
-                        <img src={prod.fotos[0]} alt={prod.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                        {enCarrito && (
-                          <span className="absolute top-3 left-3 bg-emerald-700 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shadow-sm">
-                            ✓ En Carrito
+                        <img src={prod.fotos[0]} alt={prod.nombre} className={`w-full h-full object-cover transition duration-500 ${estaAgotadoTotal ? 'grayscale' : 'group-hover:scale-105'}`} />
+                        {estaAgotadoTotal && (
+                          <span className="absolute top-3 left-3 bg-rose-700 text-white text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded shadow-md">
+                            AGOTADO
                           </span>
                         )}
                       </div>
@@ -707,7 +739,9 @@ export default function TiendaPublica() {
                           <span className="font-bold text-sm text-zinc-900">Q{precioAMostrar}.00</span>
                         </div>
                       )}
-                      <button className="bg-zinc-900 group-hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded transition">Ver Joya</button>
+                      <button className={`font-bold text-xs px-3 py-1.5 rounded transition ${estaAgotadoTotal ? 'bg-zinc-200 text-zinc-500' : 'bg-zinc-900 hover:bg-amber-700 text-white'}`}>
+                        {estaAgotadoTotal ? 'Agotado' : 'Ver Joya'}
+                      </button>
                     </div>
                   </div>
                 );
@@ -716,7 +750,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: CARRITO DE COMPRA */}
         {vistaActual === 'carrito' && (
           <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
             <div className="text-xs text-zinc-500 mb-4 font-serif">
@@ -812,7 +845,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: INICIAR SESIÓN MAYORISTA */}
         {vistaActual === 'login' && (
           <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
             <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
@@ -902,7 +934,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: REGISTRO DE NUEVO CLIENTE MAYORISTA */}
         {vistaActual === 'registro_mayorista' && (
           <section className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex justify-center items-center min-h-[65vh]">
             <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
@@ -1046,7 +1077,6 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: REVISIÓN Y FORMULARIO DE ENVÍO */}
         {vistaActual === 'revision' && (
           <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[70vh]">
             <div className="text-xs text-zinc-500 mb-4 font-serif">
@@ -1114,14 +1144,13 @@ export default function TiendaPublica() {
           </section>
         )}
 
-        {/* VISTA: PANTALLA DE ÉXITO */}
         {vistaActual === 'confirmado' && (
           <section className="py-16 max-w-3xl mx-auto px-4 text-center min-h-[65vh] flex items-center justify-center">
             <div className="bg-white p-8 md:p-12 rounded-2xl border border-[#eadecd] shadow-xl space-y-6">
               <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto text-3xl font-bold">✓</div>
               <h1 className="text-2xl md:text-3xl font-serif font-bold text-zinc-900 uppercase">¡Tu pedido se encuentra en revisión!</h1>
               <p className="text-xs text-zinc-600 max-w-md mx-auto leading-relaxed">
-                Orden <strong className="font-mono text-zinc-900">#{numeroOrdenGenerado}</strong> recibida. Confirmaremos existencias a la brevedad.
+                Orden <strong className="font-mono text-zinc-900">#{numeroOrdenGenerado}</strong> recibida y enviada al panel de administración.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button onClick={() => setVistaActual('historial')} className="bg-amber-700 text-white font-bold py-3 px-6 rounded text-xs uppercase">
@@ -1136,7 +1165,6 @@ export default function TiendaPublica() {
         )}
       </div>
 
-      {/* VENTANA DE DETALLE DE PRODUCTO (ESTILO ARGYROS) */}
       {productoSeleccionadoModal && (
         <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-3xl w-full my-8 p-6 sm:p-8 space-y-8 shadow-2xl border border-amber-200 relative max-h-[90vh] overflow-y-auto">
@@ -1168,7 +1196,6 @@ export default function TiendaPublica() {
                   <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
                 </div>
 
-                {/* DESGLOSE MAYORISTA SI TIENE SESIÓN INICIADA */}
                 {esMayorista && clienteMayoristaActivo ? (
                   <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
                     <div className="flex justify-between text-zinc-600">
@@ -1192,28 +1219,37 @@ export default function TiendaPublica() {
                   </div>
                 )}
 
-                {/* SELECTOR DE TALLAS / MEDIDAS (ESTILO ARGYROS) */}
                 <div className="pt-4 border-t border-zinc-200 space-y-4">
                   <p className="text-zinc-600 font-semibold">Seleccione una talla y cantidad:</p>
                   
                   <div className="flex items-center space-x-3">
                     <span className="font-bold text-zinc-700 w-20">Tallas (us)</span>
                     <div className="flex flex-wrap gap-2">
-                      {productoSeleccionadoModal.variantes.map((v: any) => (
-                        <button
-                          key={v.id}
-                          onClick={() => setVarianteElegida(v)}
-                          className={`w-9 h-9 border rounded font-bold transition flex items-center justify-center ${
-                            varianteElegida?.id === v.id ? 'border-amber-700 bg-amber-50 text-amber-900 font-extrabold ring-2 ring-amber-600/30' : 'border-zinc-300 text-zinc-700 hover:border-zinc-400'
-                          }`}
-                        >
-                          {v.medida}
-                        </button>
-                      ))}
+                      {productoSeleccionadoModal.variantes.map((v: any) => {
+                        const sinStock = (v.stock || 0) <= 0;
+                        return (
+                          <button
+                            key={v.id}
+                            disabled={sinStock}
+                            onClick={() => setVarianteElegida(v)}
+                            className={`px-3 py-1.5 border rounded font-bold transition flex items-center justify-center text-xs ${
+                              sinStock ? 'bg-zinc-100 text-zinc-400 border-zinc-200 line-through cursor-not-allowed' :
+                              varianteElegida?.id === v.id ? 'border-amber-700 bg-amber-50 text-amber-900 font-extrabold ring-2 ring-amber-600/30' : 'border-zinc-300 text-zinc-700 hover:border-zinc-400'
+                            }`}
+                          >
+                            {v.medida} {sinStock && '(Agotado)'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* AVISO SI ESTA TALLA ESPECÍFICA YA FUE AGREGADA AL CARRITO */}
+                  {varianteElegida && (
+                    <p className="text-[11px] font-mono text-zinc-500">
+                      Disponibles en inventario: <strong className={varianteElegida.stock > 0 ? 'text-emerald-700' : 'text-rose-600'}>{varianteElegida.stock || 0} unidades</strong>
+                    </p>
+                  )}
+
                   {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) && (
                     <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center space-x-2">
                       <span>✓</span>
@@ -1231,9 +1267,10 @@ export default function TiendaPublica() {
 
                     <button 
                       onClick={agregarAlCarritoSilencioso} 
-                      className="flex-1 bg-[#eadcc7] hover:bg-amber-700 hover:text-white text-zinc-900 font-bold text-xs uppercase py-3 rounded tracking-wider transition border border-amber-300/80"
+                      disabled={!varianteElegida || (varianteElegida.stock || 0) <= 0}
+                      className="flex-1 bg-[#eadcc7] hover:bg-amber-700 hover:text-white text-zinc-900 font-bold text-xs uppercase py-3 rounded tracking-wider transition border border-amber-300/80 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {estaEnCarrito(productoSeleccionadoModal.id, varianteElegida?.id) ? 'AGREGAR MÁS PIEZAS' : 'AGREGAR A COMPRA'}
+                      {(!varianteElegida || (varianteElegida.stock || 0) <= 0) ? 'Talla Agotada' : 'AGREGAR A COMPRA'}
                     </button>
                   </div>
                 </div>
@@ -1257,12 +1294,11 @@ export default function TiendaPublica() {
         </div>
       )}
 
-      {/* PIE DE PÁGINA */}
       <footer className="bg-[#f0e6d6] text-zinc-800 py-12 border-t border-[#dfcfb9] text-xs mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NOSOTROS</h4>
-            <p className="text-zinc-600 leading-relaxed font-light">Distribuidor de platería fina en plata ley 925.</p>
+            <p className="text-zinc-600 leading-relaxed font-light">{infoAdmin.nosotrosTexto}</p>
           </div>
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">NAVEGACIÓN</h4>
@@ -1274,7 +1310,7 @@ export default function TiendaPublica() {
             </ul>
           </div>
           <div className="space-y-3">
-            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTAS</h4>
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTas</h4>
             <ul className="space-y-2 font-light text-zinc-600">
               <li><button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className="hover:text-amber-800">Acceso Mayoristas / Tarifario Gramo</button></li>
             </ul>
@@ -1282,8 +1318,8 @@ export default function TiendaPublica() {
           <div className="space-y-3">
             <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">CONTACTO</h4>
             <ul className="space-y-2 font-light text-zinc-600">
-              <li>📍 Ciudad de Guatemala</li>
-              <li>📞 (+502) 5555-0101</li>
+              {infoAdmin.direcciones.map((d, idx) => <li key={idx}>📍 {d}</li>)}
+              {infoAdmin.telefonos.map((t, idx) => <li key={idx}>📞 {t}</li>)}
             </ul>
           </div>
         </div>

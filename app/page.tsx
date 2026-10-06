@@ -408,6 +408,7 @@ export default function TiendaPublica() {
       .from('mayoristas')
       .insert([
         {
+          id: Date.now(), // <-- Enviamos un ID numérico único generado al instante
           nombre: datosRegistroMayorista.nombreCompleto,
           telefono: datosRegistroMayorista.telefono,
           correo: datosRegistroMayorista.correo || 'No proporcionado',

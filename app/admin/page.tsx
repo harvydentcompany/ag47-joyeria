@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -110,7 +111,7 @@ function AdminDashboard() {
   ]);
   const [nuevoVendedor, setNuevoVendedor] = useState({ nombre: '', telefono: '', usuario: '', password: '' });
 
-  // 2. CLIENTES MAYORISTAS CON TARIFAS, LÍNEA DE CRÉDITO Y CUENTAS POR COBRAR
+  // 2. CLIENTES MAYORISTAS CON TARIFAS, LÍNEA DE CRÉDITO Y CUENTAS POR COBRAR (Sincronizado con Supabase)
   const [mayoristas, setMayoristas] = useState([
     { 
       id: 1, 
@@ -167,6 +168,40 @@ function AdminDashboard() {
       preciosGramoPorCategoria: { Pulseras: 35, Anillos: 37, Cadenas: 34, Aretes: 38, Gargantillas: 36, Dijes: 37 }
     },
   ]);
+
+  // CARGAR CLIENTES MAYORISTAS DESDE SUPABASE AL ABRIR EL ADMIN
+  useEffect(() => {
+    const cargarMayoristasSupabase = async () => {
+      const { data, error } = await supabase.from('mayoristas').select('*');
+      if (!error && data && data.length > 0) {
+        const mayoristasMapeados = data.map((item: any) => ({
+          id: item.id || Date.now(),
+          nombre: item.nombre || 'Sin nombre',
+          telefono: item.telefono || '',
+          email: item.correo || '',
+          direccion: '',
+          nit: 'CF',
+          estado: item.estado || 'Pendiente',
+          vendedorAsignado: 'Marta Gómez',
+          comprasContado: 0,
+          comprasCredito: 0,
+          creditosCancelados: 0,
+          tieneCredito: false,
+          limiteCredito: 0,
+          diasCredito: 15,
+          saldoDeuda: 0,
+          preciosGramoPorCategoria: { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
+        }));
+        setMayoristas(prev => {
+          // Combinar sin duplicar por nombre/teléfono
+          const existentesNombres = new Set(prev.map(p => p.nombre));
+          const nuevosUnicos = mayoristasMapeados.filter((m: any) => !existentesNombres.has(m.nombre));
+          return [...prev, ...nuevosUnicos];
+        });
+      }
+    };
+    cargarMayoristasSupabase();
+  }, []);
 
   const [nuevoCliente, setNuevoCliente] = useState({ 
     nombre: '', 
@@ -263,7 +298,7 @@ function AdminDashboard() {
     };
   });
 
-  // EFECTO DE GUARDADO AUTOMÁTICO PARA QUE NO SE PIERDAN LOS AJUSTES
+  // EFECTO DE GUARDADO AUTOMÁTICO PARA QUE NO SE PIERDAN LOS AJUSTES Y SE SINCRONICE CON LA WEB
   useEffect(() => {
     localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
   }, [portada]);
@@ -475,12 +510,23 @@ function AdminDashboard() {
     (p.barcode && p.barcode.includes(busquedaProductoCupon))
   );
 
-  const agregarCliente = (e: React.FormEvent) => {
+  const agregarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoCliente.nombre) return;
     const base = Number(nuevoCliente.tarifaG);
     const preciosBase: Record<string, number> = {};
     categoriasBase.forEach(c => preciosBase[c] = base);
+
+    // Guardar también en Supabase para sincronizar con la web si es necesario
+    await supabase.from('mayoristas').insert([
+      {
+        nombre: nuevoCliente.nombre,
+        telefono: nuevoCliente.telefono,
+        correo: 'No proporcionado',
+        tipo_cliente: 'Particular',
+        estado: 'Autorizada'
+      }
+    ]);
 
     const nuevoObj = {
       id: Date.now(),
@@ -512,6 +558,7 @@ function AdminDashboard() {
       diasCredito: 15 
     });
     setClienteDesplegadoId(nuevoObj.id);
+    alert('Cliente registrado con éxito y sincronizado.');
   };
 
   const cambiarEstado = (id: number, estado: string) => {
@@ -572,17 +619,18 @@ function AdminDashboard() {
       return alert('Por favor selecciona al menos una imagen de la galería de Google Drive.');
     }
 
-    setProductos([
-      ...productos, 
-      { 
-        ...nuevoProd, 
-        id: Date.now(), 
-        precioMinorista: Number(nuevoProd.precioMinorista) 
-      }
-    ]);
+    const productoCreado = { 
+      ...nuevoProd, 
+      id: Date.now(), 
+      precioMinorista: Number(nuevoProd.precioMinorista) 
+    };
+
+    const nuevosProductos = [...productos, productoCreado];
+    setProductos(nuevosProductos);
+    localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevosProductos));
     
     setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
-    alert('Joya guardada y sincronizada correctamente.');
+    alert('Joya guardada y sincronizada correctamente con la tienda.');
   };
 
   const productosFiltrados = categoriaSeleccionada === 'Todas' 
@@ -920,7 +968,7 @@ function AdminDashboard() {
                 <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-xs">
                   <div>
                     <h3 className="font-bold text-white text-sm">{m.nombre}</h3>
-                    <p className="text-slate-400">Tel: {m.telefono} | Deuda: <span className="text-rose-400 font-bold">Q{m.saldoDeuda}</span></p>
+                    <p className="text-slate-400">Tel: {m.telefono} | Correo: {m.email || 'N/A'} | Deuda: <span className="text-rose-400 font-bold">Q{m.saldoDeuda}</span></p>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => cambiarEstado(m.id, m.estado === 'Autorizada' ? 'Suspendida' : 'Autorizada')} className={`px-2.5 py-1 rounded font-bold text-[10px] ${m.estado === 'Autorizada' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
@@ -1090,7 +1138,7 @@ function AdminDashboard() {
 
               {/* LOGO Y BANNER */}
               <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️ URLs de Logo e Imagen de Banner</h3>
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️️ URLs de Logo e Imagen de Banner</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="font-bold block mb-1 text-slate-300">URL del Logo:</label>

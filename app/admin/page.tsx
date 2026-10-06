@@ -118,6 +118,8 @@ function AdminDashboard() {
       nombre: 'María López', 
       telefono: '5555-0101', 
       email: 'maria@ejemplo.com',
+      usuario: 'marialopez',
+      password: '123',
       direccion: 'Zona 10, Guatemala',
       nit: '1234567-8',
       estado: 'Autorizada', 
@@ -136,6 +138,8 @@ function AdminDashboard() {
       nombre: 'Marta Gómez', 
       telefono: '5555-0202', 
       email: 'marta@ejemplo.com',
+      usuario: 'martagomez',
+      password: '123',
       direccion: 'Zona 1, Quetzaltenango',
       nit: '8765432-1',
       estado: 'Autorizada', 
@@ -154,6 +158,8 @@ function AdminDashboard() {
       nombre: 'Carlos Pérez', 
       telefono: '5555-0303', 
       email: 'carlos@ejemplo.com',
+      usuario: 'carlosperez',
+      password: '123',
       direccion: 'Zona 11, Guatemala',
       nit: '5544332-1',
       estado: 'Pendiente', 
@@ -179,6 +185,8 @@ function AdminDashboard() {
           nombre: item.nombre || 'Sin nombre',
           telefono: item.telefono || '',
           email: item.correo || '',
+          usuario: (item.nombre || 'usuario').toLowerCase().replace(/\s+/g, ''),
+          password: '123',
           direccion: '',
           nit: 'CF',
           estado: item.estado || 'Pendiente',
@@ -193,7 +201,6 @@ function AdminDashboard() {
           preciosGramoPorCategoria: { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
         }));
         setMayoristas(prev => {
-          // Combinar sin duplicar por nombre/teléfono
           const existentesNombres = new Set(prev.map(p => p.nombre));
           const nuevosUnicos = mayoristasMapeados.filter((m: any) => !existentesNombres.has(m.nombre));
           return [...prev, ...nuevosUnicos];
@@ -517,9 +524,9 @@ function AdminDashboard() {
     const preciosBase: Record<string, number> = {};
     categoriasBase.forEach(c => preciosBase[c] = base);
 
-    // Guardar también en Supabase para sincronizar con la web si es necesario
     await supabase.from('mayoristas').insert([
       {
+        id: Date.now(),
         nombre: nuevoCliente.nombre,
         telefono: nuevoCliente.telefono,
         correo: 'No proporcionado',
@@ -533,6 +540,8 @@ function AdminDashboard() {
       nombre: nuevoCliente.nombre,
       telefono: nuevoCliente.telefono,
       email: '',
+      usuario: nuevoCliente.nombre.toLowerCase().replace(/\s+/g, ''),
+      password: '123',
       direccion: '',
       nit: 'CF',
       estado: 'Autorizada',
@@ -947,7 +956,7 @@ function AdminDashboard() {
           <div className="space-y-6 max-w-5xl">
             <div>
               <h2 className="text-xl font-bold font-serif text-amber-400">Clientes Mayoristas & Cuentas Por Cobrar</h2>
-              <p className="text-xs text-slate-400">Ajusta tarifas y créditos.</p>
+              <p className="text-xs text-slate-400">Edita tarifas por gramo, créditos, credenciales y estados.</p>
             </div>
 
             <form onSubmit={agregarCliente} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3 text-xs">
@@ -963,20 +972,141 @@ function AdminDashboard() {
               <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded uppercase">Guardar Cliente</button>
             </form>
 
-            <div className="space-y-3">
-              {mayoristas.map((m) => (
-                <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center text-xs">
-                  <div>
-                    <h3 className="font-bold text-white text-sm">{m.nombre}</h3>
-                    <p className="text-slate-400">Tel: {m.telefono} | Correo: {m.email || 'N/A'} | Deuda: <span className="text-rose-400 font-bold">Q{m.saldoDeuda}</span></p>
+            {/* LISTA DE CLIENTES MAYORISTAS CON PESTAÑA DESPLEGABLE */}
+            <div className="space-y-4">
+              {mayoristas.map((m) => {
+                const estaDesplegado = clienteDesplegadoId === m.id;
+                return (
+                  <div key={m.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden text-xs">
+                    
+                    {/* ENCABEZADO DE CADA CLIENTE */}
+                    <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-white text-sm">{m.nombre}</h3>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${m.estado === 'Autorizada' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/40' : 'bg-rose-600/20 text-rose-400 border border-rose-600/40'}`}>
+                            {m.estado}
+                          </span>
+                        </div>
+                        <p className="text-slate-400 mt-0.5">Tel: {m.telefono} | Usuario: <strong className="text-amber-400">{m.usuario || 'N/A'}</strong></p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => cambiarEstado(m.id, m.estado === 'Autorizada' ? 'Suspendida' : 'Autorizada')} 
+                          className={`px-3 py-1.5 rounded font-bold text-[10px] transition ${m.estado === 'Autorizada' ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+                        >
+                          {m.estado === 'Autorizada' ? '🔴 Suspender Cuenta' : '🟢 Habilitar Cuenta'}
+                        </button>
+                        <button 
+                          onClick={() => setClienteDesplegadoId(estaDesplegado ? null : m.id)} 
+                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded text-xs transition"
+                        >
+                          {estaDesplegado ? '▲ Ocultar Ajustes' : '▼ Editar Tarifas y Crédito'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* PESTAÑA DESPLEGABLE DE EDICIÓN DE PRECIOS, CRÉDITOS Y CREDENCIALES */}
+                    {estaDesplegado && (
+                      <div className="bg-slate-950 p-5 border-t border-slate-800 space-y-6">
+                        
+                        {/* CREDENCIALES DE ACCESO */}
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">🔑 Credenciales de Acceso B2B</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-slate-400 mb-1">Usuario de Acceso:</label>
+                              <input 
+                                type="text" 
+                                value={m.usuario || ''} 
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setMayoristas(mayoristas.map(item => item.id === m.id ? { ...item, usuario: val } : item));
+                                }}
+                                className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-slate-400 mb-1">Contraseña:</label>
+                              <input 
+                                type="text" 
+                                value={m.password || ''} 
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setMayoristas(mayoristas.map(item => item.id === m.id ? { ...item, password: val } : item));
+                                }}
+                                className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* TARIFARIO POR GRAMO POR CATEGORÍA */}
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">⚖️ Tarifario por Gramo por Categoría (Q)</h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                            {categoriasBase.map((cat) => {
+                              const precioActual = m.preciosGramoPorCategoria?.[cat] || 36;
+                              return (
+                                <div key={cat} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-center space-y-1">
+                                  <span className="text-[10px] text-slate-400 uppercase block font-bold">{cat}</span>
+                                  <input 
+                                    type="number" 
+                                    value={precioActual} 
+                                    onChange={(e) => cambiarPrecioCategoria(m.id, cat, Number(e.target.value))}
+                                    className="w-full p-1.5 bg-slate-950 border border-slate-700 rounded text-center text-amber-400 font-bold"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* CRÉDITOS Y LÍNEA DE FINANCIAMIENTO */}
+                        <div className="space-y-3 pt-2">
+                          <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">💳 Configuración de Crédito</h4>
+                          
+                          <div className="flex items-center space-x-3 bg-slate-900 p-3 rounded border border-slate-800">
+                            <input 
+                              type="checkbox" 
+                              checked={m.tieneCredito} 
+                              onChange={(e) => actualizarCreditoCliente(m.id, 'tieneCredito', e.target.checked)}
+                              className="w-4 h-4 rounded text-amber-500"
+                            />
+                            <span className="font-bold text-white">Autorizar Línea de Crédito a este cliente</span>
+                          </div>
+
+                          {m.tieneCredito && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <label className="block text-slate-400 mb-1">Límite de Crédito Autorizado (Q):</label>
+                                <input 
+                                  type="number" 
+                                  value={m.limiteCredito} 
+                                  onChange={(e) => actualizarCreditoCliente(m.id, 'limiteCredito', Number(e.target.value))}
+                                  className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-white font-bold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-400 mb-1">Plazo de Días de Crédito:</label>
+                                <input 
+                                  type="number" 
+                                  value={m.diasCredito} 
+                                  onChange={(e) => actualizarCreditoCliente(m.id, 'diasCredito', Number(e.target.value))}
+                                  className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-white font-bold"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+
                   </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => cambiarEstado(m.id, m.estado === 'Autorizada' ? 'Suspendida' : 'Autorizada')} className={`px-2.5 py-1 rounded font-bold text-[10px] ${m.estado === 'Autorizada' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
-                      {m.estado}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1138,7 +1268,7 @@ function AdminDashboard() {
 
               {/* LOGO Y BANNER */}
               <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼️️ URLs de Logo e Imagen de Banner</h3>
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 URLs de Logo e Imagen de Banner</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="font-bold block mb-1 text-slate-300">URL del Logo:</label>

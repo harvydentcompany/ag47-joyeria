@@ -89,15 +89,25 @@ function AdminDashboard() {
     password: adminCredenciales.password
   });
 
-  // BANCO DE IMÁGENES SIMULADO DE GOOGLE DRIVE / ARCHIVOS CLOUD (ESTILO GALERÍA REFERENCIA)
-  const [galeriaDrive] = useState([
-    { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
-    { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' },
-    { id: 'img_3', url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800', nombre: '2.8_T7_9.5.jpg' },
-    { id: 'img_4', url: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800', nombre: '2.5_T8.5.jpg' },
-    { id: 'img_5', url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800', nombre: 'Aretes_Pave.jpg' },
-    { id: 'img_6', url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800', nombre: 'Dije_Medalla.jpg' }
-  ]);
+  // BANCO DE IMÁGENES HÍBRIDO (Sincronizado con Supabase Storage y LocalStorage)
+  const [galeriaDrive, setGaleriaDrive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardadas = localStorage.getItem('ag47_galeria_drive');
+      if (guardadas) {
+        try { return JSON.parse(guardadas); } catch(e) {}
+      }
+    }
+    return [
+      { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
+      { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' },
+      { id: 'img_3', url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800', nombre: '2.8_T7_9.5.jpg' },
+      { id: 'img_4', url: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800', nombre: '2.5_T8.5.jpg' },
+      { id: 'img_5', url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800', nombre: 'Aretes_Pave.jpg' },
+      { id: 'img_6', url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800', nombre: 'Dije_Medalla.jpg' }
+    ];
+  });
+
+  const [subiendoArchivoSupabase, setSubiendoArchivoSupabase] = useState(false);
 
   // ESTADO MODAL SELECTOR DE DRIVE / GALERÍA
   const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
@@ -303,6 +313,55 @@ function AdminDashboard() {
     fotos: [] as string[],
     variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
   });
+
+  // FUNCIÓN HÍBRIDA PARA SUBIR ARCHIVO DIRECTAMENTE A SUPABASE STORAGE Y AÑADIRLO A LA GALERÍA
+  const manejarSubidaArchivoSupabaseStorage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+
+    setSubiendoArchivoSupabase(true);
+    try {
+      const nombreArchivo = `${Date.now()}-${archivo.name.replace(/\s+/g, '_')}`;
+      
+      const { error } = await supabase.storage
+        .from('joyas')
+        .upload(nombreArchivo, archivo);
+
+      if (error) {
+        alert('Error al subir a Supabase Storage: ' + error.message + '\n(Asegúrate de crear un bucket público llamado "joyas").');
+        setSubiendoArchivoSupabase(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('joyas')
+        .getPublicUrl(nombreArchivo);
+
+      if (urlData?.publicUrl) {
+        const nuevaImg = {
+          id: `img_${Date.now()}`,
+          url: urlData.publicUrl,
+          nombre: archivo.name
+        };
+
+        const galeriaActualizada = [nuevaImg, ...galeriaDrive];
+        setGaleriaDrive(galeriaActualizada);
+        localStorage.setItem('ag47_galeria_drive', JSON.stringify(galeriaActualizada));
+
+        // Auto-añadir la foto recién subida al producto actual
+        setNuevoProd({
+          ...nuevoProd,
+          fotos: [...nuevoProd.fotos, urlData.publicUrl]
+        });
+
+        alert('¡Imagen subida a Supabase y añadida a tu galería!');
+      }
+    } catch (err: any) {
+      alert('Error inesperado: ' + err.message);
+    } finally {
+      setSubiendoArchivoSupabase(false);
+    }
+  };
 
   // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS"
   const [portada, setPortada] = useState(() => {
@@ -663,7 +722,7 @@ function AdminDashboard() {
   const agregarProducto = (e: React.FormEvent) => {
     e.preventDefault();
     if (nuevoProd.fotos.length === 0) {
-      return alert('Por favor selecciona al menos una imagen de la galería de Google Drive.');
+      return alert('Por favor selecciona o sube al menos una imagen.');
     }
 
     const productoCreado = { 
@@ -1193,16 +1252,16 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* SECCIÓN 5: PRODUCTOS, TALLAS Y SELECTOR MULTIMEDIA DE GOOGLE DRIVE */}
+        {/* SECCIÓN 5: PRODUCTOS, TALLAS Y DOBLE OPCIÓN MULTIMEDIA (SUPABASE + DRIVE) */}
         {seccion === 'productos' && (
           <div className="space-y-6 max-w-5xl">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold font-serif text-amber-400">Inventario con Tallas y Medidas</h2>
-                <p className="text-xs text-slate-400">Selecciona imágenes desde tu Cloud / Google Drive para asociarlas a la joya.</p>
+                <p className="text-xs text-slate-400">Selecciona o sube imágenes mediante Google Drive o Supabase Storage.</p>
               </div>
               <button onClick={exportarCatalogoCSV} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded shadow transition">
-                📥 Exportar Catálogo CSV (con links Drive)
+                📥 Exportar Catálogo CSV (con links)
               </button>
             </div>
 
@@ -1219,19 +1278,28 @@ function AdminDashboard() {
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
 
-              {/* SECCIÓN MULTIMEDIA EXACTA A TU SOLICITUD */}
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia (Google Drive / Galería Cloud) *</label>
+              {/* SECCIÓN MULTIMEDIA HÍBRIDA (SUPABASE STORAGE + GALERÍA DRIVE) */}
+              <div className="space-y-3 pt-2 border-t border-slate-800">
+                <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia (Doble Opción) *</label>
                 
-                <div 
-                  onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
-                  className="w-full py-6 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-2 cursor-pointer transition group"
-                >
-                  <div className="w-10 h-10 bg-slate-900 rounded-lg border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-105 transition">
-                    📁
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Opción 1: Banco de imágenes / Galería tipo Drive */}
+                  <div 
+                    onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
+                    className="py-4 px-3 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition"
+                  >
+                    <span className="font-bold text-amber-300 text-xs">📁 Seleccionar de Galería / Banco</span>
+                    <span className="text-[10px] text-slate-400">({nuevoProd.fotos.length} seleccionadas)</span>
                   </div>
-                  <span className="font-bold text-amber-300 text-xs">Seleccionar imágenes desde Google Drive (Estilo Galería)</span>
-                  <span className="text-[10px] text-slate-400">({nuevoProd.fotos.length} imágenes seleccionadas para este producto)</span>
+
+                  {/* Opción 2: Subir archivo directamente a Supabase Storage */}
+                  <label className="py-4 px-3 border-2 border-dashed border-emerald-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition">
+                    <span className="font-bold text-emerald-300 text-xs">
+                      {subiendoArchivoSupabase ? 'Subiendo a Supabase...' : '☁️ Subir Foto a Supabase Storage'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">Guarda directo en tu bucket "joyas"</span>
+                    <input type="file" accept="image/*" onChange={manejarSubidaArchivoSupabaseStorage} className="hidden" disabled={subiendoArchivoSupabase} />
+                  </label>
                 </div>
 
                 {/* MINIATURAS SELECCIONADAS */}

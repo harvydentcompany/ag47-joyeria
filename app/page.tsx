@@ -418,7 +418,7 @@ export default function TiendaPublica() {
 
     if (error) {
       console.error('Error al guardar solicitud en Supabase:', error);
-      alert('Hubo un error al enviar tu solicitud. Inténtalo de nuevo.');
+      alert('Error de Supabase: ' + error.message);
       return;
     }
 

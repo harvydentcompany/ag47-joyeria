@@ -347,11 +347,12 @@ export default function TiendaPublica() {
     if (!loginUsuario || !loginPassword) return alert('Por favor ingresa tu usuario y contraseña.');
 
     setCargandoLogin(true);
+    const queryVal = loginUsuario.trim().toLowerCase();
 
     const { data, error } = await supabase
       .from('mayoristas')
       .select('*')
-      .or(`usuario.eq.${loginUsuario.trim().toLowerCase()},correo.eq.${loginUsuario.trim().toLowerCase()},nombre.ilike.%${loginUsuario.trim()%}`);
+      .or(`usuario.eq.${queryVal},correo.eq.${queryVal}`);
 
     setCargandoLogin(false);
 

@@ -182,7 +182,6 @@ export default function TiendaPublica() {
     return carrito.some(item => item.productoId === productoId);
   };
 
-  // CÁLCULO DE PRECIO USANDO LAS TARIFAS POR GRAMO DESDE SUPABASE
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
       const preciosGramo = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
@@ -279,7 +278,6 @@ export default function TiendaPublica() {
   const totalPiezas = carrito.reduce((sum, item) => sum + item.cantidad, 0);
   const totalMonto = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
 
-  // PROCESAR PEDIDO Y ENVIARLO A SUPABASE Y AL ADMIN
   const procesarHacerPedido = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -315,7 +313,6 @@ export default function TiendaPublica() {
       }))
     };
 
-    // Guardar pedido directamente en la tabla 'pedidos' de Supabase
     await supabase.from('pedidos').insert([
       {
         id: numOrden,
@@ -345,7 +342,6 @@ export default function TiendaPublica() {
     window.open(url, '_blank');
   };
 
-  // INICIO DE SESIÓN CONSULTANDO DIRECTAMENTE SUPABASE
   const ejecutarLoginMayorista = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginUsuario || !loginPassword) return alert('Por favor ingresa tu usuario y contraseña.');
@@ -385,7 +381,6 @@ export default function TiendaPublica() {
     setVistaActual('inicio');
   };
 
-  // ENVIAR SOLICITUD MAYORISTA A SUPABASE
   const enviarRegistroMayorista = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!datosRegistroMayorista.nombreCompleto || !datosRegistroMayorista.telefono) {

@@ -20,6 +20,21 @@ export default function TiendaPublica() {
   const [cantidadModal, setCantidadModal] = useState<number>(1);
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
+  
+  // ESTADO PARA EL PANEL DE ADMINISTRACIÓN DE PRODUCTOS
+  const [mostrarModalAdmin, setMostrarModalAdmin] = useState(false);
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [idEditando, setIdEditando] = useState<number | null>(null);
+  const [skuAdmin, setSkuAdmin] = useState('');
+  const [nombreAdmin, setNombreAdmin] = useState('');
+  const [catAdmin, setCatAdmin] = useState('Anillos');
+  const [precioMinAdmin, setPrecioMinAdmin] = useState('');
+  const [pesoAdmin, setPesoAdmin] = useState('2.5');
+  const [stockAdmin, setStockAdmin] = useState('10');
+  const [tallaAdmin, setTallaAdmin] = useState('6');
+  const [imagenUrlAdmin, setImagenUrlAdmin] = useState('');
+  const [descAdmin, setDescAdmin] = useState('');
+  const [subiendoArchivo, setSubiendoArchivo] = useState(false);
 
   // DATOS DE CONFIGURACIÓN INSTITUCIONAL EDITABLES DESDE EL ADMIN
   const [infoAdmin, setInfoAdmin] = useState({
@@ -187,7 +202,6 @@ export default function TiendaPublica() {
     if (esMayorista && clienteMayoristaActivo) {
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
       
-      // Intentar leer si el admin actualizó los precios de este mayorista en el navegador local
       if (typeof window !== 'undefined') {
         const mayoristasAdminLocal = localStorage.getItem('ag47_mayoristas_admin');
         if (mayoristasAdminLocal) {
@@ -432,6 +446,120 @@ export default function TiendaPublica() {
     setSolicitudEnviada(true);
   };
 
+  // FUNCIONES DE GESTIÓN DEL ADMIN (CREAR, EDITAR, ELIMINAR, SUBIR IMAGEN)
+  const guardarInventarioAdmin = (nuevaLista: any[]) => {
+    setProductos(nuevaLista);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevaLista));
+    }
+  };
+
+  const limpiarFormularioAdmin = () => {
+    setSkuAdmin('');
+    setNombreAdmin('');
+    setPrecioMinAdmin('');
+    setDescAdmin('');
+    setImagenUrlAdmin('');
+    setModoEdicion(false);
+    setIdEditando(null);
+  };
+
+  const prepararEdicionAdmin = (prod: any) => {
+    setModoEdicion(true);
+    setIdEditando(prod.id);
+    setSkuAdmin(prod.sku);
+    setNombreAdmin(prod.nombre);
+    setCatAdmin(prod.categoria);
+    setPrecioMinAdmin(prod.precioMinorista.toString());
+    setDescAdmin(prod.descripcion);
+    setImagenUrlAdmin(prod.fotos?.[0] || '');
+    if (prod.variantes?.[0]) {
+      setPesoAdmin(prod.variantes[0].peso?.toString() || '2.5');
+      setStockAdmin(prod.variantes[0].stock?.toString() || '10');
+      setTallaAdmin(prod.variantes[0].medida || '6');
+    }
+  };
+
+  const eliminarProductoAdmin = (id: number) => {
+    if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
+      const filtrados = productos.filter(p => p.id !== id);
+      guardarInventarioAdmin(filtrados);
+    }
+  };
+
+  const manejarSubidaArchivoSupabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+
+    setSubiendoArchivo(true);
+    try {
+      const nombreArchivo = `${Date.now()}-${archivo.name.replace(/\s+/g, '_')}`;
+      
+      const { error } = await supabase.storage
+        .from('joyas')
+        .upload(nombreArchivo, archivo);
+
+      if (error) {
+        alert('Error al subir a Supabase Storage: ' + error.message + '\n(Asegúrate de crear un bucket público llamado "joyas" en tu panel de Supabase).');
+        setSubiendoArchivo(false);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('joyas')
+        .getPublicUrl(nombreArchivo);
+
+      if (urlData?.publicUrl) {
+        setImagenUrlAdmin(urlData.publicUrl);
+        alert('¡Imagen subida con éxito a Supabase!');
+      }
+    } catch (err: any) {
+      alert('Error inesperado al subir la imagen: ' + err.message);
+    } finally {
+      setSubiendoArchivo(false);
+    }
+  };
+
+  const handleSubmitAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nombreAdmin || !precioMinAdmin || !skuAdmin) {
+      alert('Por favor completa los campos obligatorios (SKU, Nombre, Precio)');
+      return;
+    }
+
+    const productoData = {
+      id: modoEdicion && idEditando ? idEditando : Date.now(),
+      sku: skuAdmin,
+      nombre: nombreAdmin,
+      categoria: catAdmin,
+      precioMinorista: Number(precioMinAdmin),
+      esNuevo: true,
+      material: 'Plata 925',
+      descripcion: descAdmin || 'Joya fina en plata ley 925.',
+      fotos: [imagenUrlAdmin || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
+      variantes: [
+        {
+          id: `v-${Date.now()}`,
+          medida: tallaAdmin,
+          peso: Number(pesoAdmin),
+          stock: Number(stockAdmin)
+        }
+      ]
+    };
+
+    if (modoEdicion && idEditando) {
+      const actualizados = productos.map(p => p.id === idEditando ? productoData : p);
+      guardarInventarioAdmin(actualizados);
+      alert('¡Producto actualizado con éxito!');
+    } else {
+      const actualizados = [productoData, ...productos];
+      guardarInventarioAdmin(actualizados);
+      alert('¡Producto creado con éxito!');
+    }
+
+    limpiarFormularioAdmin();
+  };
+
   const productosFiltrados = productos.filter(p => {
     const coincideCategoria = categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro;
     const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.sku.toLowerCase().includes(busqueda.toLowerCase());
@@ -449,6 +577,12 @@ export default function TiendaPublica() {
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
           <div className="flex gap-3 items-center">
+            <button 
+              onClick={() => setMostrarModalAdmin(true)} 
+              className="font-mono text-[10px] bg-amber-700 hover:bg-amber-800 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
+            >
+              🛠️ Admin Inventario
+            </button>
             <button 
               onClick={() => setVistaActual('historial')} 
               className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
@@ -1172,6 +1306,130 @@ export default function TiendaPublica() {
           </section>
         )}
       </div>
+
+      {/* MODAL DEL PANEL DE ADMINISTRACIÓN DE PRODUCTOS */}
+      {mostrarModalAdmin && (
+        <div className="fixed inset-0 bg-zinc-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 md:p-8 space-y-6 shadow-2xl border border-amber-300 relative max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-4">
+              <h2 className="text-xl font-serif font-bold text-zinc-900 uppercase">🛠️ Panel de Gestión de Productos</h2>
+              <button onClick={() => setMostrarModalAdmin(false)} className="bg-zinc-200 hover:bg-zinc-300 font-bold w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+            </div>
+
+            <form onSubmit={handleSubmitAdmin} className="bg-[#fcfaf7] p-5 rounded-xl border border-[#ebdcc2] space-y-4 text-xs">
+              <h3 className="font-bold text-amber-900 uppercase tracking-wider">
+                {modoEdicion ? '✏️ Editar Producto Existente' : '➕ Agregar Nuevo Producto'}
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">SKU / Código *</label>
+                  <input type="text" required value={skuAdmin} onChange={e => setSkuAdmin(e.target.value)} placeholder="Ej. AN-001" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Nombre de la Joya *</label>
+                  <input type="text" required value={nombreAdmin} onChange={e => setNombreAdmin(e.target.value)} placeholder="Ej. Anillo Solitario" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Categoría *</label>
+                  <select value={catAdmin} onChange={e => setCatAdmin(e.target.value)} className="w-full p-2.5 bg-white border rounded">
+                    <option value="Anillos">Anillos</option>
+                    <option value="Aretes">Aretes</option>
+                    <option value="Gargantillas">Gargantillas</option>
+                    <option value="Pulseras">Pulseras</option>
+                    <option value="Dijes & Medallas">Dijes & Medallas</option>
+                    <option value="Cadenas">Cadenas</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Precio Minorista (Q) *</label>
+                  <input type="number" required value={precioMinAdmin} onChange={e => setPrecioMinAdmin(e.target.value)} placeholder="220" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Peso en Gramos (Mayoristas) *</label>
+                  <input type="number" step="0.1" required value={pesoAdmin} onChange={e => setPesoAdmin(e.target.value)} placeholder="2.5" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Stock Disponible *</label>
+                  <input type="number" required value={stockAdmin} onChange={e => setStockAdmin(e.target.value)} placeholder="10" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-zinc-700 mb-1">Talla / Medida</label>
+                  <input type="text" value={tallaAdmin} onChange={e => setTallaAdmin(e.target.value)} placeholder="Ej. 6 ó 45 cm" className="w-full p-2.5 bg-white border rounded" />
+                </div>
+                
+                <div className="space-y-1">
+                  <label className="block font-bold text-zinc-700">Imagen (Subir archivo O pegar URL)</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={imagenUrlAdmin} 
+                      onChange={e => setImagenUrlAdmin(e.target.value)} 
+                      placeholder="https://... o sube archivo →" 
+                      className="w-full p-2 bg-white border rounded text-xs" 
+                    />
+                    <label className="bg-zinc-900 hover:bg-amber-700 text-white font-bold px-3 py-2 rounded cursor-pointer whitespace-nowrap text-[11px] flex items-center transition">
+                      {subiendoArchivo ? 'Subiendo...' : '📁 Subir foto'}
+                      <input type="file" accept="image/*" onChange={manejarSubidaArchivoSupabase} className="hidden" disabled={subiendoArchivo} />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {imagenUrlAdmin && (
+                <div className="flex items-center space-x-3 p-2 bg-white border rounded-lg w-fit">
+                  <img src={imagenUrlAdmin} alt="Vista previa" className="w-12 h-12 object-cover rounded" />
+                  <span className="text-[11px] text-zinc-500 truncate max-w-xs">Imagen seleccionada</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-zinc-700 mb-1">Descripción del Producto</label>
+                <textarea rows={2} value={descAdmin} onChange={e => setDescAdmin(e.target.value)} placeholder="Detalles de la joya..." className="w-full p-2.5 bg-white border rounded"></textarea>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="submit" className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-6 py-2.5 rounded uppercase transition">
+                  {modoEdicion ? 'Actualizar Producto' : 'Guardar Nuevo Producto'}
+                </button>
+                {modoEdicion && (
+                  <button type="button" onClick={limpiarFormularioAdmin} className="bg-zinc-300 hover:bg-zinc-400 text-zinc-800 font-bold px-4 py-2.5 rounded uppercase">
+                    Cancelar Edición
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="space-y-3">
+              <h3 className="font-serif font-bold text-sm uppercase text-zinc-900">Inventario Actual ({productos.length} productos)</h3>
+              <div className="max-h-64 overflow-y-auto divide-y border rounded-lg bg-white">
+                {productos.map(p => (
+                  <div key={p.id} className="p-3 flex items-center justify-between text-xs hover:bg-zinc-50">
+                    <div className="flex items-center space-x-3">
+                      <img src={p.fotos?.[0]} alt="" className="w-10 h-10 object-cover rounded border bg-zinc-100" />
+                      <div>
+                        <p className="font-bold text-zinc-900">{p.nombre} <span className="font-mono text-zinc-400">({p.sku})</span></p>
+                        <p className="text-zinc-500">Cat: {p.categoria} | Minorista: Q{p.precioMinorista} | Stock: {p.variantes?.[0]?.stock || 0}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => prepararEdicionAdmin(p)} className="bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-1.5 rounded font-bold uppercase">Editar</button>
+                      <button onClick={() => eliminarProductoAdmin(p.id)} className="bg-rose-100 hover:bg-rose-200 text-rose-800 px-3 py-1.5 rounded font-bold uppercase">Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {productoSeleccionadoModal && (
         <div className="fixed inset-0 bg-zinc-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">

@@ -182,10 +182,26 @@ export default function TiendaPublica() {
     return carrito.some(item => item.productoId === productoId);
   };
 
+  // CÁLCULO DE PRECIOS CONECTADO AL LOCALSTORAGE DEL ADMIN Y SUPABASE
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
-      const preciosGramo = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
-      const tarifaGramo = preciosGramo[producto.categoria] || 36;
+      let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
+      
+      // Intentar leer si el admin actualizó los precios de este mayorista en el navegador local
+      if (typeof window !== 'undefined') {
+        const mayoristasAdminLocal = localStorage.getItem('ag47_mayoristas_admin');
+        if (mayoristasAdminLocal) {
+          try {
+            const listaLocal = JSON.parse(mayoristasAdminLocal);
+            const encontradoLocal = listaLocal.find((m: any) => m.id === clienteMayoristaActivo.id || m.usuario === clienteMayoristaActivo.usuario);
+            if (encontradoLocal && (encontradoLocal.precios_gramo || encontradoLocal.preciosGramoPorCategoria)) {
+              preciosGramoFinal = encontradoLocal.precios_gramo || encontradoLocal.preciosGramoPorCategoria;
+            }
+          } catch(e) {}
+        }
+      }
+
+      const tarifaGramo = preciosGramoFinal[producto.categoria] || 36;
       const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
       return Number((pesoUnitario * tarifaGramo).toFixed(2));
     }
@@ -573,7 +589,20 @@ export default function TiendaPublica() {
                   {productos.map((prod) => {
                     const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                     const pesoBase = prod.variantes[0]?.peso || 0;
-                    const preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                    
+                    let preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                    if (typeof window !== 'undefined') {
+                      try {
+                        const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
+                        if (localAdmin) {
+                          const parsedLocal = JSON.parse(localAdmin);
+                          const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo?.id);
+                          if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
+                            preciosGramoCliente = enc.precios_gramo || enc.preciosGramoPorCategoria;
+                          }
+                        }
+                      } catch(e) {}
+                    }
                     const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                     const stockTotal = calcularStockTotalProducto(prod);
                     const estaAgotadoTotal = stockTotal <= 0;
@@ -718,7 +747,20 @@ export default function TiendaPublica() {
               {productosFiltrados.map((prod) => {
                 const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                 const pesoBase = prod.variantes[0]?.peso || 0;
-                const preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                
+                let preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                if (typeof window !== 'undefined') {
+                  try {
+                    const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
+                    if (localAdmin) {
+                      const parsedLocal = JSON.parse(localAdmin);
+                      const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo?.id);
+                      if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
+                        preciosGramoCliente = enc.precios_gramo || enc.preciosGramoPorCategoria;
+                      }
+                    }
+                  } catch(e) {}
+                }
                 const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                 const stockTotal = calcularStockTotalProducto(prod);
                 const estaAgotadoTotal = stockTotal <= 0;
@@ -1163,7 +1205,19 @@ export default function TiendaPublica() {
                 </div>
 
                 {esMayorista && clienteMayoristaActivo ? (() => {
-                  const preciosGramoModal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
+                  let preciosGramoModal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
+                  if (typeof window !== 'undefined') {
+                    try {
+                      const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
+                      if (localAdmin) {
+                        const parsedLocal = JSON.parse(localAdmin);
+                        const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo.id);
+                        if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
+                          preciosGramoModal = enc.precios_gramo || enc.preciosGramoPorCategoria;
+                        }
+                      }
+                    } catch(e) {}
+                  }
                   const tarifaActualModal = preciosGramoModal[productoSeleccionadoModal.categoria] || 36;
                   return (
                     <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">

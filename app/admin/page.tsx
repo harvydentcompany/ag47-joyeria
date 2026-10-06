@@ -185,8 +185,8 @@ function AdminDashboard() {
           nombre: item.nombre || 'Sin nombre',
           telefono: item.telefono || '',
           email: item.correo || '',
-          usuario: (item.nombre || 'usuario').toLowerCase().replace(/\s+/g, ''),
-          password: '123',
+          usuario: item.usuario || (item.nombre || 'usuario').toLowerCase().replace(/\s+/g, ''),
+          password: item.password || '123',
           direccion: '',
           nit: 'CF',
           estado: item.estado || 'Pendiente',
@@ -194,21 +194,49 @@ function AdminDashboard() {
           comprasContado: 0,
           comprasCredito: 0,
           creditosCancelados: 0,
-          tieneCredito: false,
-          limiteCredito: 0,
-          diasCredito: 15,
+          tieneCredito: item.tiene_credito || false,
+          limiteCredito: item.limite_credito || 0,
+          diasCredito: item.dias_credito || 15,
           saldoDeuda: 0,
-          preciosGramoPorCategoria: { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
+          preciosGramoPorCategoria: item.precios_gramo || { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
         }));
         setMayoristas(prev => {
-          const existentesNombres = new Set(prev.map(p => p.nombre));
-          const nuevosUnicos = mayoristasMapeados.filter((m: any) => !existentesNombres.has(m.nombre));
+          const existentesIds = new Set(prev.map(p => p.id));
+          const nuevosUnicos = mayoristasMapeados.filter((m: any) => !existentesIds.has(m.id));
           return [...prev, ...nuevosUnicos];
         });
       }
     };
     cargarMayoristasSupabase();
   }, []);
+
+  // FUNCIÓN PARA GUARDAR CAMBIOS DE UN CLIENTE DIRECTAMENTE EN SUPABASE
+  const guardarClienteEnSupabase = async (clienteActualizado: any) => {
+    const { error } = await supabase
+      .from('mayoristas')
+      .upsert([
+        {
+          id: clienteActualizado.id,
+          nombre: clienteActualizado.nombre,
+          telefono: clienteActualizado.telefono,
+          correo: clienteActualizado.email || 'No proporcionado',
+          usuario: clienteActualizado.usuario,
+          password: clienteActualizado.password,
+          estado: clienteActualizado.estado,
+          tiene_credito: clienteActualizado.tieneCredito,
+          limite_credito: clienteActualizado.limiteCredito,
+          dias_credito: clienteActualizado.diasCredito,
+          precios_gramo: clienteActualizado.preciosGramoPorCategoria
+        }
+      ]);
+
+    if (error) {
+      console.error('Error al sincronizar con Supabase:', error);
+      alert('Error al guardar en Supabase: ' + error.message);
+    } else {
+      alert(`¡Cambios guardados y sincronizados para ${clienteActualizado.nombre}!`);
+    }
+  };
 
   const [nuevoCliente, setNuevoCliente] = useState({ 
     nombre: '', 
@@ -524,24 +552,33 @@ function AdminDashboard() {
     const preciosBase: Record<string, number> = {};
     categoriasBase.forEach(c => preciosBase[c] = base);
 
+    const idUnico = Date.now();
+    const usuarioGen = nuevoCliente.nombre.toLowerCase().replace(/\s+/g, '');
+    const passGen = '123';
+
     await supabase.from('mayoristas').insert([
       {
-        id: Date.now(),
+        id: idUnico,
         nombre: nuevoCliente.nombre,
         telefono: nuevoCliente.telefono,
         correo: 'No proporcionado',
-        tipo_cliente: 'Particular',
-        estado: 'Autorizada'
+        usuario: usuarioGen,
+        password: passGen,
+        estado: 'Autorizada',
+        tiene_credito: nuevoCliente.tieneCredito,
+        limite_credito: nuevoCliente.limiteCredito,
+        dias_credito: nuevoCliente.diasCredito,
+        precios_gramo: preciosBase
       }
     ]);
 
     const nuevoObj = {
-      id: Date.now(),
+      id: idUnico,
       nombre: nuevoCliente.nombre,
       telefono: nuevoCliente.telefono,
       email: '',
-      usuario: nuevoCliente.nombre.toLowerCase().replace(/\s+/g, ''),
-      password: '123',
+      usuario: usuarioGen,
+      password: passGen,
       direccion: '',
       nit: 'CF',
       estado: 'Autorizada',
@@ -566,12 +603,17 @@ function AdminDashboard() {
       limiteCredito: 0, 
       diasCredito: 15 
     });
-    setClienteDesplegadoId(nuevoObj.id);
-    alert('Cliente registrado con éxito y sincronizado.');
+    setClienteDesplegadoId(idUnico);
+    alert('Cliente registrado con éxito y sincronizado con Supabase.');
   };
 
-  const cambiarEstado = (id: number, estado: string) => {
-    setMayoristas(mayoristas.map(m => m.id === id ? { ...m, estado } : m));
+  const cambiarEstado = async (id: number, nuevoEstado: string) => {
+    const actualizados = mayoristas.map(m => m.id === id ? { ...m, estado: nuevoEstado } : m);
+    setMayoristas(actualizados);
+    const clienteModificado = actualizados.find(m => m.id === id);
+    if (clienteModificado) {
+      await guardarClienteEnSupabase(clienteModificado);
+    }
   };
 
   const cambiarPrecioCategoria = (clienteId: number, categoria: string, nuevoPrecio: number) => {
@@ -593,20 +635,16 @@ function AdminDashboard() {
     setMayoristas(mayoristas.map(m => m.id === clienteId ? { ...m, [campo]: valor } : m));
   };
 
-  const registrarAbonoDeuda = (clienteId: number) => {
-    const abono = montoAbonoInput[clienteId] || 0;
-    if (abono <= 0) return alert('Ingresa un monto de abono válido.');
+  // FUNCIÓN PARA ENVIAR ACCESOS VÍA WHATSAPP AL CLIENTE
+  const enviarAccesosWhatsapp = (cliente: any) => {
+    let mensaje = `¡Hola *${cliente.nombre}*! Tu cuenta mayorista en *AG47* ha sido habilitada.\n\n`;
+    mensaje += `Tus datos de acceso al Portal B2B son:\n`;
+    mensaje += `• Usuario: *${cliente.usuario}*\n`;
+    mensaje += `• Contraseña: *${cliente.password}*\n\n`;
+    mensaje += `Ya puedes ingresar y cotizar con tus tarifas preferenciales. ¡Bienvenido/a!`;
 
-    setMayoristas(mayoristas.map(m => {
-      if (m.id === clienteId) {
-        const nuevaDeuda = Math.max(0, m.saldoDeuda - abono);
-        return { ...m, saldoDeuda: nuevaDeuda, creditosCancelados: m.saldoDeuda - abono <= 0 ? m.creditosCancelados + 1 : m.creditosCancelados };
-      }
-      return m;
-    }));
-
-    setMontoAbonoInput({ ...montoAbonoInput, [clienteId]: 0 });
-    alert(`Abono de Q${abono} registrado con éxito.`);
+    const url = `https://wa.me/${cliente.telefono.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
   };
 
   const agregarCampoVariante = () => {
@@ -648,14 +686,6 @@ function AdminDashboard() {
 
   const cambiarEstadoPedidoDirecto = (pedidoId: number, nuevoEstado: string) => {
     setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
-  };
-
-  const actualizarItemPedido = (itemId: number, campo: string, valor: any) => {
-    const itemsActualizados = pedidoDetalleModal.items.map((it: any) => {
-      if (it.id === itemId) return { ...it, [campo]: valor };
-      return it;
-    });
-    setPedidoDetalleModal({ ...pedidoDetalleModal, items: itemsActualizados });
   };
 
   const guardarRevisionPedido = () => {
@@ -956,7 +986,7 @@ function AdminDashboard() {
           <div className="space-y-6 max-w-5xl">
             <div>
               <h2 className="text-xl font-bold font-serif text-amber-400">Clientes Mayoristas & Cuentas Por Cobrar</h2>
-              <p className="text-xs text-slate-400">Edita tarifas por gramo, créditos, credenciales y estados.</p>
+              <p className="text-xs text-slate-400">Edita tarifas, créditos, credenciales y guarda los cambios directamente en Supabase.</p>
             </div>
 
             <form onSubmit={agregarCliente} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3 text-xs">
@@ -991,7 +1021,15 @@ function AdminDashboard() {
                         <p className="text-slate-400 mt-0.5">Tel: {m.telefono} | Usuario: <strong className="text-amber-400">{m.usuario || 'N/A'}</strong></p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {m.estado === 'Autorizada' && (
+                          <button 
+                            onClick={() => enviarAccesosWhatsapp(m)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded text-[10px] transition flex items-center space-x-1"
+                          >
+                            <span>💬 Enviar Accesos WhatsApp</span>
+                          </button>
+                        )}
                         <button 
                           onClick={() => cambiarEstado(m.id, m.estado === 'Autorizada' ? 'Suspendida' : 'Autorizada')} 
                           className={`px-3 py-1.5 rounded font-bold text-[10px] transition ${m.estado === 'Autorizada' ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
@@ -1007,7 +1045,7 @@ function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* PESTAÑA DESPLEGABLE DE EDICIÓN DE PRECIOS, CRÉDITOS Y CREDENCIALES */}
+                    {/* PESTAÑA DESPLEGABLE DE EDICIÓN CON BOTÓN DE GUARDAR */}
                     {estaDesplegado && (
                       <div className="bg-slate-950 p-5 border-t border-slate-800 space-y-6">
                         
@@ -1099,6 +1137,16 @@ function AdminDashboard() {
                               </div>
                             </div>
                           )}
+                        </div>
+
+                        {/* BOTÓN DE GUARDAR CAMBIOS EN SUPABASE */}
+                        <div className="pt-2 flex justify-end">
+                          <button 
+                            onClick={() => guardarClienteEnSupabase(m)}
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded uppercase tracking-wider text-xs shadow transition"
+                          >
+                            💾 Guardar Cambios en Supabase
+                          </button>
                         </div>
 
                       </div>

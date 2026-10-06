@@ -138,27 +138,6 @@ export default function TiendaPublica() {
   const [loginRecordar, setLoginRecordar] = useState(false);
   const [cargandoLogin, setCargandoLogin] = useState(false);
 
-  const [listaMayoristas, setListaMayoristas] = useState([
-    { 
-      id: 1, 
-      nombre: 'María López', 
-      telefono: '5555-1122', 
-      correo: 'maria@eldiamante.com', 
-      tipoCliente: 'Tienda Física', 
-      estado: 'Autorizado',
-      tarifasPorGramo: { Anillos: 38, Aretes: 40, Gargantillas: 37, Pulseras: 36, Cadenas: 35, 'Dijes & Medallas': 39 }
-    },
-    { 
-      id: 2, 
-      nombre: 'Carlos Pérez', 
-      telefono: '5555-3344', 
-      correo: 'carlos@perez.com', 
-      tipoCliente: 'Revendedor / Venta Ruteada', 
-      estado: 'Pendiente',
-      tarifasPorGramo: { Anillos: 35, Aretes: 36, Gargantillas: 34, Pulseras: 33, Cadenas: 32, 'Dijes & Medallas': 35 }
-    }
-  ]);
-
   const [datosRegistroMayorista, setDatosRegistroMayorista] = useState({
     nombreCompleto: '',
     telefono: '',
@@ -180,7 +159,6 @@ export default function TiendaPublica() {
     notaPedido: ''
   });
 
-  const [medioConfirmacion] = useState<'whatsapp' | 'correo'>('whatsapp');
   const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
 
   const [todasLasCategorias] = useState([
@@ -204,9 +182,11 @@ export default function TiendaPublica() {
     return carrito.some(item => item.productoId === productoId);
   };
 
+  // CÁLCULO DE PRECIO USANDO LAS TARIFAS POR GRAMO DESDE SUPABASE
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
-      const tarifaGramo = clienteMayoristaActivo.tarifasPorGramo[producto.categoria] || 36;
+      const preciosGramo = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
+      const tarifaGramo = preciosGramo[producto.categoria] || 36;
       const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
       return Number((pesoUnitario * tarifaGramo).toFixed(2));
     }
@@ -317,15 +297,6 @@ export default function TiendaPublica() {
     const numOrdenStr = numOrden.toString();
     setNumeroOrdenGenerado(numOrdenStr);
 
-    // 1. Guardar cliente en Supabase
-    await supabase.from('clientes').insert([
-      {
-        nombre: datosEnvio.nombreCompleto,
-        telefono: datosEnvio.telefono,
-        tipo: esMayorista ? 'Mayorista' : 'Minorista'
-      }
-    ]);
-
     const nuevoPedidoWeb = {
       id: numOrden,
       cliente: datosEnvio.nombreCompleto,
@@ -344,11 +315,15 @@ export default function TiendaPublica() {
       }))
     };
 
-    // 2. Guardar pedido en Supabase
+    // Guardar pedido directamente en la tabla 'pedidos' de Supabase
     await supabase.from('pedidos').insert([
       {
-        id_orden: numOrden,
-        datos_pedido: nuevoPedidoWeb
+        id: numOrden,
+        cliente: datosEnvio.nombreCompleto,
+        tarifa_g: esMayorista ? 36 : 35,
+        estado: 'Pendiente de revisar',
+        fecha: new Date().toISOString().slice(0, 10),
+        items: nuevoPedidoWeb.items
       }
     ]);
 
@@ -370,24 +345,38 @@ export default function TiendaPublica() {
     window.open(url, '_blank');
   };
 
-  const ejecutarLoginMayorista = (e: React.FormEvent) => {
+  // INICIO DE SESIÓN CONSULTANDO DIRECTAMENTE SUPABASE
+  const ejecutarLoginMayorista = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginUsuario) return alert('Por favor ingresa tu usuario.');
-
-    const usuarioEncontrado = listaMayoristas.find(m => m.correo.toLowerCase() === loginUsuario.toLowerCase() || m.nombre.toLowerCase() === loginUsuario.toLowerCase());
-
-    if (usuarioEncontrado && usuarioEncontrado.estado === 'Pendiente') {
-      return alert('Tu cuenta aún se encuentra PENDIENTE DE REVISIÓN.');
-    }
+    if (!loginUsuario || !loginPassword) return alert('Por favor ingresa tu usuario y contraseña.');
 
     setCargandoLogin(true);
-    setTimeout(() => {
-      setCargandoLogin(false);
-      setEsMayorista(true);
-      setClienteMayoristaActivo(usuarioEncontrado || listaMayoristas[0]);
-      setVistaActual('inicio');
-      alert(`¡Sesión iniciada correctamente! Se ha activado tu tarifario por gramo.`);
-    }, 1000);
+
+    const { data, error } = await supabase
+      .from('mayoristas')
+      .select('*')
+      .or(`usuario.eq.${loginUsuario.trim().toLowerCase()},correo.eq.${loginUsuario.trim().toLowerCase()},nombre.ilike.%${loginUsuario.trim()%}`);
+
+    setCargandoLogin(false);
+
+    if (error || !data || data.length === 0) {
+      return alert('Usuario o contraseña incorrectos, o la cuenta no existe.');
+    }
+
+    const clienteEncontrado = data[0];
+
+    if (clienteEncontrado.password && clienteEncontrado.password !== loginPassword) {
+      return alert('Contraseña incorrecta.');
+    }
+
+    if (clienteEncontrado.estado === 'Suspendida' || clienteEncontrado.estado === 'Pendiente') {
+      return alert(`Tu cuenta se encuentra actualmente con estado: ${clienteEncontrado.estado}. Contacta al administrador.`);
+    }
+
+    setEsMayorista(true);
+    setClienteMayoristaActivo(clienteEncontrado);
+    setVistaActual('inicio');
+    alert(`¡Bienvenido/a ${clienteEncontrado.nombre}! Tarifario por gramo activado.`);
   };
 
   const cerrarSesionMayorista = () => {
@@ -404,36 +393,30 @@ export default function TiendaPublica() {
       return;
     }
 
+    const idUnico = Date.now();
+    const usuarioGen = datosRegistroMayorista.nombreCompleto.toLowerCase().replace(/\s+/g, '');
+    const passGen = '123';
+
     const { error } = await supabase
       .from('mayoristas')
       .insert([
         {
-          id: Date.now(), // <-- Enviamos un ID numérico único generado al instante
+          id: idUnico,
           nombre: datosRegistroMayorista.nombreCompleto,
           telefono: datosRegistroMayorista.telefono,
           correo: datosRegistroMayorista.correo || 'No proporcionado',
-          tipo_cliente: datosRegistroMayorista.tipoCliente || 'Particular',
-          estado: 'Pendiente'
+          usuario: usuarioGen,
+          password: passGen,
+          estado: 'Pendiente',
+          precios_gramo: { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
         }
       ]);
 
     if (error) {
-      console.error('Error al guardar solicitud en Supabase:', error);
-      alert('Error de Supabase: ' + error.message);
+      alert('Error de Supabase al registrar solicitud: ' + error.message);
       return;
     }
 
-    const nuevo = {
-      id: Date.now(),
-      nombre: datosRegistroMayorista.nombreCompleto,
-      telefono: datosRegistroMayorista.telefono,
-      correo: datosRegistroMayorista.correo || 'No proporcionado',
-      tipoCliente: datosRegistroMayorista.tipoCliente || 'Particular',
-      estado: 'Pendiente',
-      tarifasPorGramo: { Anillos: 36, Aretes: 36, Gargantillas: 36, Pulseras: 36, Cadenas: 36, 'Dijes & Medallas': 36 }
-    };
-
-    setListaMayoristas([...listaMayoristas, nuevo]);
     setSolicitudEnviada(true);
   };
 
@@ -594,7 +577,8 @@ export default function TiendaPublica() {
                   {productos.map((prod) => {
                     const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                     const pesoBase = prod.variantes[0]?.peso || 0;
-                    const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                    const preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                    const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                     const stockTotal = calcularStockTotalProducto(prod);
                     const estaAgotadoTotal = stockTotal <= 0;
 
@@ -738,7 +722,8 @@ export default function TiendaPublica() {
               {productosFiltrados.map((prod) => {
                 const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
                 const pesoBase = prod.variantes[0]?.peso || 0;
-                const tarifaGramo = clienteMayoristaActivo?.tarifasPorGramo[prod.categoria] || 36;
+                const preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
+                const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                 const stockTotal = calcularStockTotalProducto(prod);
                 const estaAgotadoTotal = stockTotal <= 0;
 
@@ -898,7 +883,7 @@ export default function TiendaPublica() {
                   <input 
                     type="text" 
                     required
-                    placeholder="ejemplo@joyeria.com o tu nombre"
+                    placeholder="ejemplo@joyeria.com o tu usuario"
                     value={loginUsuario}
                     onChange={(e) => setLoginUsuario(e.target.value)}
                     className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600 transition"
@@ -910,9 +895,6 @@ export default function TiendaPublica() {
                     <label className="font-bold text-zinc-700 uppercase tracking-wider text-[11px]">
                       CONTRASEÑA *
                     </label>
-                    <a href="#" onClick={(e) => { e.preventDefault(); alert('Ponte en contacto con soporte para restablecer tu clave.'); }} className="text-[11px] text-amber-800 hover:underline">
-                      ¿Olvidaste tu contraseña?
-                    </a>
                   </div>
                   <input 
                     type="password" 
@@ -1023,50 +1005,6 @@ export default function TiendaPublica() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
-                        Tipo de Cliente
-                      </label>
-                      <select 
-                        value={datosRegistroMayorista.tipoCliente}
-                        onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, tipoCliente: e.target.value })}
-                        className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg text-xs focus:outline-none focus:border-amber-600"
-                      >
-                        <option value="Particular">Particular / Comprador Personal</option>
-                        <option value="Tienda Física">Tengo Tienda Física / Sala de Ventas</option>
-                        <option value="Redes Sociales">Venta por Redes Sociales / Catálogo</option>
-                        <option value="Revendedor">Revendedor / Venta Ruteada</option>
-                        <option value="Emprendedor">Iniciando negocio de platería</option>
-                      </select>
-                    </div>
-
-                    <div className="pt-2 border-t border-[#f0e6d6] space-y-3">
-                      <label className="flex items-center space-x-2.5 cursor-pointer text-zinc-700 font-bold text-xs p-2.5 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg">
-                        <input 
-                          type="checkbox" 
-                          checked={datosRegistroMayorista.requiereEnvio}
-                          onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, requiereEnvio: e.target.checked })}
-                          className="rounded border-amber-300 text-amber-700 w-4 h-4"
-                        />
-                        <span>🚚 Requiero envío a domicilio para mis pedidos</span>
-                      </label>
-
-                      {datosRegistroMayorista.requiereEnvio && (
-                        <div>
-                          <label className="block font-bold text-zinc-700 mb-1 uppercase tracking-wider text-[11px]">
-                            Dirección Exacta de Entrega (Opcional)
-                          </label>
-                          <input 
-                            type="text" 
-                            placeholder="Calle, avenida, zona, municipio o departamento"
-                            value={datosRegistroMayorista.direccion}
-                            onChange={(e) => setDatosRegistroMayorista({ ...datosRegistroMayorista, direccion: e.target.value })}
-                            className="w-full p-3 bg-[#fcfaf7] border border-[#e5d8c3] rounded-lg focus:outline-none focus:border-amber-600"
-                          />
-                        </div>
-                      )}
-                    </div>
-
                     <button 
                       type="submit"
                       className="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3.5 rounded-lg text-xs uppercase tracking-wider transition shadow-md mt-2"
@@ -1092,7 +1030,7 @@ export default function TiendaPublica() {
                     ¡Solicitud Recibida!
                   </h2>
                   <p className="text-xs text-zinc-600 max-w-sm mx-auto leading-relaxed">
-                    Gracias <strong className="text-zinc-900">{datosRegistroMayorista.nombreCompleto}</strong>. Evaluaremos tu perfil y te enviaremos tus credenciales de acceso al WhatsApp <strong className="text-zinc-900">{datosRegistroMayorista.telefono}</strong>.
+                    Gracias <strong className="text-zinc-900">{datosRegistroMayorista.nombreCompleto}</strong>. Tu cuenta ha sido registrada y enviada al panel de administración para su autorización.
                   </p>
                   <div className="pt-4">
                     <button 
@@ -1228,24 +1166,28 @@ export default function TiendaPublica() {
                   <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
                 </div>
 
-                {esMayorista && clienteMayoristaActivo ? (
-                  <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
-                    <div className="flex justify-between text-zinc-600">
-                      <span>Peso pieza:</span>
-                      <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
+                {esMayorista && clienteMayoristaActivo ? (() => {
+                  const preciosGramoModal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
+                  const tarifaActualModal = preciosGramoModal[productoSeleccionadoModal.categoria] || 36;
+                  return (
+                    <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
+                      <div className="flex justify-between text-zinc-600">
+                        <span>Peso pieza:</span>
+                        <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
+                      </div>
+                      <div className="flex justify-between text-zinc-600">
+                        <span>Precio por gramo asignado:</span>
+                        <strong className="font-mono text-emerald-800">Q{tarifaActualModal.toFixed(2)} /g</strong>
+                      </div>
+                      <div className="border-t border-amber-200/60 pt-2 flex justify-between items-baseline">
+                        <span className="font-bold text-zinc-700">Precio Total Pieza:</span>
+                        <span className="font-serif font-bold text-2xl text-amber-900">
+                          Q{obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-zinc-600">
-                      <span>Precio por gramo asignado:</span>
-                      <strong className="font-mono text-emerald-800">Q{(clienteMayoristaActivo.tarifasPorGramo[productoSeleccionadoModal.categoria] || 36).toFixed(2)} /g</strong>
-                    </div>
-                    <div className="border-t border-amber-200/60 pt-2 flex justify-between items-baseline">
-                      <span className="font-bold text-zinc-700">Precio Total Pieza:</span>
-                      <span className="font-serif font-bold text-2xl text-amber-900">
-                        Q{obtenerPrecioCalculado(productoSeleccionadoModal, varianteElegida).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
+                  );
+                })() : (
                   <div className="pt-2">
                     <span className="font-serif font-bold text-3xl text-zinc-900">Q{productoSeleccionadoModal.precioMinorista}.00</span>
                   </div>
@@ -1342,7 +1284,7 @@ export default function TiendaPublica() {
             </ul>
           </div>
           <div className="space-y-3">
-            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTas</h4>
+            <h4 className="font-serif font-bold text-amber-900 uppercase tracking-widest text-sm">MAYORISTAS</h4>
             <ul className="space-y-2 font-light text-zinc-600">
               <li><button onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} className="hover:text-amber-800">Acceso Mayoristas / Tarifario Gramo</button></li>
             </ul>

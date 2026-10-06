@@ -20,20 +20,20 @@ export default function TiendaPublica() {
   const [cantidadModal, setCantidadModal] = useState<number>(1);
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
-
-  // ESTADOS PARA EL PANEL DE ADMINISTRACIÓN DE PRODUCTOS
-  const [modalAdminVisible, setModalAdminVisible] = useState(false);
-  const [modoEdicionAdmin, setModoEdicionAdmin] = useState(false);
-  const [idEditandoAdmin, setIdEditandoAdmin] = useState<number | null>(null);
+  
+  // ESTADO PARA EL PANEL DE ADMINISTRACIÓN DE PRODUCTOS
+  const [mostrarModalAdmin, setMostrarModalAdmin] = useState(false);
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [idEditando, setIdEditando] = useState<number | null>(null);
   const [skuAdmin, setSkuAdmin] = useState('');
   const [nombreAdmin, setNombreAdmin] = useState('');
-  const [categoriaAdmin, setCategoriaAdmin] = useState('Anillos');
+  const [catAdmin, setCatAdmin] = useState('Anillos');
   const [precioMinAdmin, setPrecioMinAdmin] = useState('');
   const [pesoAdmin, setPesoAdmin] = useState('2.5');
   const [stockAdmin, setStockAdmin] = useState('10');
   const [tallaAdmin, setTallaAdmin] = useState('6');
   const [imagenUrlAdmin, setImagenUrlAdmin] = useState('');
-  const [descripcionAdmin, setDescripcionAdmin] = useState('');
+  const [descAdmin, setDescAdmin] = useState('');
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
 
   // DATOS DE CONFIGURACIÓN INSTITUCIONAL EDITABLES DESDE EL ADMIN
@@ -202,7 +202,6 @@ export default function TiendaPublica() {
     if (esMayorista && clienteMayoristaActivo) {
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
       
-      // Intentar leer si el admin actualizó los precios de este mayorista en el navegador local
       if (typeof window !== 'undefined') {
         const mayoristasAdminLocal = localStorage.getItem('ag47_mayoristas_admin');
         if (mayoristasAdminLocal) {
@@ -459,20 +458,20 @@ export default function TiendaPublica() {
     setSkuAdmin('');
     setNombreAdmin('');
     setPrecioMinAdmin('');
-    setDescripcionAdmin('');
+    setDescAdmin('');
     setImagenUrlAdmin('');
-    setModoEdicionAdmin(false);
-    setIdEditandoAdmin(null);
+    setModoEdicion(false);
+    setIdEditando(null);
   };
 
   const prepararEdicionAdmin = (prod: any) => {
-    setModoEdicionAdmin(true);
-    setIdEditandoAdmin(prod.id);
+    setModoEdicion(true);
+    setIdEditando(prod.id);
     setSkuAdmin(prod.sku);
     setNombreAdmin(prod.nombre);
-    setCategoriaAdmin(prod.categoria);
+    setCatAdmin(prod.categoria);
     setPrecioMinAdmin(prod.precioMinorista.toString());
-    setDescripcionAdmin(prod.descripcion);
+    setDescAdmin(prod.descripcion);
     setImagenUrlAdmin(prod.fotos?.[0] || '');
     if (prod.variantes?.[0]) {
       setPesoAdmin(prod.variantes[0].peso?.toString() || '2.5');
@@ -529,14 +528,14 @@ export default function TiendaPublica() {
     }
 
     const productoData = {
-      id: modoEdicionAdmin && idEditandoAdmin ? idEditandoAdmin : Date.now(),
+      id: modoEdicion && idEditando ? idEditando : Date.now(),
       sku: skuAdmin,
       nombre: nombreAdmin,
-      categoria: categoriaAdmin,
+      categoria: catAdmin,
       precioMinorista: Number(precioMinAdmin),
       esNuevo: true,
       material: 'Plata 925',
-      descripcion: descripcionAdmin || 'Joya fina en plata ley 925.',
+      descripcion: descAdmin || 'Joya fina en plata ley 925.',
       fotos: [imagenUrlAdmin || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
       variantes: [
         {
@@ -548,8 +547,8 @@ export default function TiendaPublica() {
       ]
     };
 
-    if (modoEdicionAdmin && idEditandoAdmin) {
-      const actualizados = productos.map(p => p.id === idEditandoAdmin ? productoData : p);
+    if (modoEdicion && idEditando) {
+      const actualizados = productos.map(p => p.id === idEditando ? productoData : p);
       guardarInventarioAdmin(actualizados);
       alert('¡Producto actualizado con éxito!');
     } else {
@@ -579,7 +578,7 @@ export default function TiendaPublica() {
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
           <div className="flex gap-3 items-center">
             <button 
-              onClick={() => setModalAdminVisible(true)} 
+              onClick={() => setMostrarModalAdmin(true)} 
               className="font-mono text-[10px] bg-amber-700 hover:bg-amber-800 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
             >
               🛠️ Admin Inventario
@@ -1308,18 +1307,18 @@ export default function TiendaPublica() {
         )}
       </div>
 
-      {/* MODAL DE GESTIÓN DE PRODUCTOS (CREAR, EDITAR, ELIMINAR Y SUBIR FOTOS A SUPABASE) */}
-      {modalAdminVisible && (
+      {/* MODAL DEL PANEL DE ADMINISTRACIÓN DE PRODUCTOS */}
+      {mostrarModalAdmin && (
         <div className="fixed inset-0 bg-zinc-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-4xl w-full p-6 md:p-8 space-y-6 shadow-2xl border border-amber-300 relative max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b pb-4">
               <h2 className="text-xl font-serif font-bold text-zinc-900 uppercase">🛠️ Panel de Gestión de Productos</h2>
-              <button onClick={() => setModalAdminVisible(false)} className="bg-zinc-200 hover:bg-zinc-300 font-bold w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+              <button onClick={() => setMostrarModalAdmin(false)} className="bg-zinc-200 hover:bg-zinc-300 font-bold w-8 h-8 rounded-full flex items-center justify-center">✕</button>
             </div>
 
             <form onSubmit={handleSubmitAdmin} className="bg-[#fcfaf7] p-5 rounded-xl border border-[#ebdcc2] space-y-4 text-xs">
               <h3 className="font-bold text-amber-900 uppercase tracking-wider">
-                {modoEdicionAdmin ? '✏️ Editar Producto Existente' : '➕ Agregar Nuevo Producto'}
+                {modoEdicion ? '✏️ Editar Producto Existente' : '➕ Agregar Nuevo Producto'}
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1333,7 +1332,7 @@ export default function TiendaPublica() {
                 </div>
                 <div>
                   <label className="block font-bold text-zinc-700 mb-1">Categoría *</label>
-                  <select value={categoriaAdmin} onChange={e => setCategoriaAdmin(e.target.value)} className="w-full p-2.5 bg-white border rounded">
+                  <select value={catAdmin} onChange={e => setCatAdmin(e.target.value)} className="w-full p-2.5 bg-white border rounded">
                     <option value="Anillos">Anillos</option>
                     <option value="Aretes">Aretes</option>
                     <option value="Gargantillas">Gargantillas</option>
@@ -1392,14 +1391,14 @@ export default function TiendaPublica() {
 
               <div>
                 <label className="block font-bold text-zinc-700 mb-1">Descripción del Producto</label>
-                <textarea rows={2} value={descripcionAdmin} onChange={e => setDescripcionAdmin(e.target.value)} placeholder="Detalles de la joya..." className="w-full p-2.5 bg-white border rounded"></textarea>
+                <textarea rows={2} value={descAdmin} onChange={e => setDescAdmin(e.target.value)} placeholder="Detalles de la joya..." className="w-full p-2.5 bg-white border rounded"></textarea>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button type="submit" className="bg-amber-700 hover:bg-amber-800 text-white font-bold px-6 py-2.5 rounded uppercase transition">
-                  {modoEdicionAdmin ? 'Actualizar Producto' : 'Guardar Nuevo Producto'}
+                  {modoEdicion ? 'Actualizar Producto' : 'Guardar Nuevo Producto'}
                 </button>
-                {modoEdicionAdmin && (
+                {modoEdicion && (
                   <button type="button" onClick={limpiarFormularioAdmin} className="bg-zinc-300 hover:bg-zinc-400 text-zinc-800 font-bold px-4 py-2.5 rounded uppercase">
                     Cancelar Edición
                   </button>

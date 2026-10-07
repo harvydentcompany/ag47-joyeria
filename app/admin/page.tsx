@@ -72,8 +72,64 @@ export default function AdminPage() {
 function AdminDashboard() {
   const [seccion, setSeccion] = useState('pedidos');
 
-  // Categorías fijas del catálogo
-  const categoriasBase = ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
+  // CATEGORÍAS DINÁMICAS (Guardadas en LocalStorage para poder crearlas, editarlas y eliminarlas)
+  const [categoriasBase, setCategoriasBase] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardadas = localStorage.getItem('ag47_categorias_admin');
+      if (guardadas) {
+        try { return JSON.parse(guardadas); } catch(e) {}
+      }
+    }
+    return ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
+  });
+
+  const [nuevaCatInput, setNuevaCatInput] = useState('');
+  const [editandoCategoriaIndex, setEditandoCategoriaIndex] = useState<number | null>(null);
+  const [nombreCatEditada, setNombreCatEditada] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('ag47_categorias_admin', JSON.stringify(categoriasBase));
+  }, [categoriasBase]);
+
+  const agregarCategoria = (e: React.FormEvent) => {
+    e.preventDefault();
+    const catLimpia = nuevaCatInput.trim();
+    if (!catLimpia) return;
+    if (categoriasBase.includes(catLimpia)) {
+      return alert('Esa categoría ya existe.');
+    }
+    setCategoriasBase([...categoriasBase, catLimpia]);
+    setNuevaCatInput('');
+    alert('¡Categoría creada con éxito!');
+  };
+
+  const eliminarCategoria = (catAEliminar: string) => {
+    if (categoriasBase.length <= 1) {
+      return alert('Debes mantener al menos una categoría.');
+    }
+    if (confirm(`¿Estás seguro de eliminar la categoría "${catAEliminar}"?`)) {
+      setCategoriasBase(categoriasBase.filter((c: string) => c !== catAEliminar));
+    }
+  };
+
+  const guardarEdicionCategoria = (indexOriginal: number) => {
+    const nombreNuevo = nombreCatEditada.trim();
+    if (!nombreNuevo) return;
+    const catAntigua = categoriasBase[indexOriginal];
+
+    const actualizadas = [...categoriasBase];
+    actualizadas[indexOriginal] = nombreNuevo;
+    setCategoriasBase(actualizadas);
+
+    // Actualizar también la categoría en los productos existentes para que no queden huérfanos
+    const productosActualizados = productos.map((p: any) => p.categoria === catAntigua ? { ...p, categoria: nombreNuevo } : p);
+    setProductos(productosActualizados);
+    localStorage.setItem('ag47_inventario_admin', JSON.stringify(productosActualizados));
+
+    setEditandoCategoriaIndex(null);
+    setNombreCatEditada('');
+    alert('¡Categoría actualizada correctamente!');
+  };
 
   // ID del cliente desplegado en la sección B2B
   const [clienteDesplegadoId, setClienteDesplegadoId] = useState<number | null>(1);
@@ -262,53 +318,64 @@ function AdminDashboard() {
 
   // 3. PRODUCTOS E INVENTARIO CON CÓDIGO DE BARRAS, TALLAS Y MEDIDAS
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
-  const [productos, setProductos] = useState([
-    { 
-      id: 101, 
-      sku: 'ANI-012', 
-      barcode: '740100200301',
-      nombre: 'Anillo Zirconia Garra', 
-      categoria: 'Anillos', 
-      precioMinorista: 220, 
-      fotos: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
-      variantes: [
-        { id: 'v1', medida: 'Talla 6', peso: 3.2, stock: 5 },
-        { id: 'v2', medida: 'Talla 7', peso: 3.5, stock: 8 },
-        { id: 'v3', medida: 'Talla 8', peso: 3.8, stock: 2 },
-      ]
-    },
-    { 
-      id: 102, 
-      sku: 'CAD-005', 
-      barcode: '740100200302',
-      nombre: 'Cadena Escalera Plata 925', 
-      categoria: 'Cadenas', 
-      precioMinorista: 600, 
-      fotos: ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'],
-      variantes: [
-        { id: 'v4', medida: '45 cm', peso: 10.5, stock: 4 },
-        { id: 'v5', medida: '50 cm', peso: 12.0, stock: 6 },
-      ]
-    },
-    { 
-      id: 103, 
-      sku: 'PUL-088', 
-      barcode: '740100200303',
-      nombre: 'Pulsera Tejido Italiano', 
-      categoria: 'Pulseras', 
-      precioMinorista: 450, 
-      fotos: ['https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'],
-      variantes: [
-        { id: 'v6', medida: '18 cm', peso: 8.5, stock: 6 }
-      ]
+  const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos'); // 'Todos', 'Disponible', 'Baja cantidad', 'Agotado'
+  const [editandoProductoId, setEditandoProductoId] = useState<number | null>(null);
+
+  const [productos, setProductos] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardados = localStorage.getItem('ag47_inventario_admin');
+      if (guardados) {
+        try { return JSON.parse(guardados); } catch(e) {}
+      }
     }
-  ]);
+    return [
+      { 
+        id: 101, 
+        sku: 'ANI-012', 
+        barcode: '740100200301',
+        nombre: 'Anillo Zirconia Garra', 
+        categoria: 'Anillos', 
+        precioMinorista: 220, 
+        fotos: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
+        variantes: [
+          { id: 'v1', medida: 'Talla 6', peso: 3.2, stock: 5 },
+          { id: 'v2', medida: 'Talla 7', peso: 3.5, stock: 8 },
+          { id: 'v3', medida: 'Talla 8', peso: 3.8, stock: 2 },
+        ]
+      },
+      { 
+        id: 102, 
+        sku: 'CAD-005', 
+        barcode: '740100200302',
+        nombre: 'Cadena Escalera Plata 925', 
+        categoria: 'Cadenas', 
+        precioMinorista: 600, 
+        fotos: ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'],
+        variantes: [
+          { id: 'v4', medida: '45 cm', peso: 10.5, stock: 4 },
+          { id: 'v5', medida: '50 cm', peso: 12.0, stock: 6 },
+        ]
+      },
+      { 
+        id: 103, 
+        sku: 'PUL-088', 
+        barcode: '740100200303',
+        nombre: 'Pulsera Tejido Italiano', 
+        categoria: 'Pulseras', 
+        precioMinorista: 450, 
+        fotos: ['https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'],
+        variantes: [
+          { id: 'v6', medida: '18 cm', peso: 8.5, stock: 6 }
+        ]
+      }
+    ];
+  });
 
   const [nuevoProd, setNuevoProd] = useState({
     sku: '', 
     barcode: '',
     nombre: '', 
-    categoria: 'Anillos', 
+    categoria: categoriasBase[0] || 'Anillos', 
     precioMinorista: 0, 
     fotos: [] as string[],
     variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
@@ -609,7 +676,7 @@ function AdminDashboard() {
     if (!nuevoCliente.nombre) return;
     const base = Number(nuevoCliente.tarifaG);
     const preciosBase: Record<string, number> = {};
-    categoriasBase.forEach(c => preciosBase[c] = base);
+    categoriasBase.forEach((c: string) => preciosBase[c] = base);
 
     const idUnico = Date.now();
     const usuarioGen = nuevoCliente.nombre.toLowerCase().replace(/\s+/g, '');
@@ -719,29 +786,73 @@ function AdminDashboard() {
     setNuevoProd({ ...nuevoProd, variantes: nuevasVar });
   };
 
-  const agregarProducto = (e: React.FormEvent) => {
+  // GUARDAR O ACTUALIZAR PRODUCTO
+  const guardarOActualizarProducto = (e: React.FormEvent) => {
     e.preventDefault();
     if (nuevoProd.fotos.length === 0) {
       return alert('Por favor selecciona o sube al menos una imagen.');
     }
 
-    const productoCreado = { 
-      ...nuevoProd, 
-      id: Date.now(), 
-      precioMinorista: Number(nuevoProd.precioMinorista) 
-    };
+    if (editandoProductoId !== null) {
+      const actualizados = productos.map((p: any) => p.id === editandoProductoId ? { ...nuevoProd, id: editandoProductoId, precioMinorista: Number(nuevoProd.precioMinorista) } : p);
+      setProductos(actualizados);
+      localStorage.setItem('ag47_inventario_admin', JSON.stringify(actualizados));
+      setEditandoProductoId(null);
+      alert('¡Joya actualizada con éxito!');
+    } else {
+      const productoCreado = { 
+        ...nuevoProd, 
+        id: Date.now(), 
+        precioMinorista: Number(nuevoProd.precioMinorista) 
+      };
 
-    const nuevosProductos = [...productos, productoCreado];
-    setProductos(nuevosProductos);
-    localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevosProductos));
+      const nuevosProductos = [...productos, productoCreado];
+      setProductos(nuevosProductos);
+      localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevosProductos));
+      alert('Joya guardada y sincronizada correctamente con la tienda.');
+    }
     
-    setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
-    alert('Joya guardada y sincronizada correctamente con la tienda.');
+    setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0] || 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
   };
 
-  const productosFiltrados = categoriaSeleccionada === 'Todas' 
-    ? productos 
-    : productos.filter(p => p.categoria === categoriaSeleccionada);
+  // ELIMINAR PRODUCTO
+  const eliminarProducto = (id: number) => {
+    if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
+      const filtrados = productos.filter((p: any) => p.id !== id);
+      setProductos(filtrados);
+      localStorage.setItem('ag47_inventario_admin', JSON.stringify(filtrados));
+    }
+  };
+
+  // CARGAR PRODUCTO PARA EDITAR
+  const cargarProductoParaEditar = (p: any) => {
+    setEditandoProductoId(p.id);
+    setNuevoProd({
+      sku: p.sku,
+      barcode: p.barcode || '',
+      nombre: p.nombre,
+      categoria: p.categoria,
+      precioMinorista: p.precioMinorista,
+      fotos: p.fotos,
+      variantes: p.variantes
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // OBTENER ESTADO DE STOCK PARA FILTRAR
+  const obtenerEstadoStockProducto = (p: any) => {
+    const totalStock = p.variantes.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0);
+    if (totalStock === 0) return { texto: 'Agotado', clase: 'bg-rose-600/20 text-rose-400 border-rose-600/40' };
+    if (totalStock <= 3) return { texto: 'Baja cantidad', clase: 'bg-amber-600/20 text-amber-400 border-amber-600/40' };
+    return { texto: 'Disponible', clase: 'bg-emerald-600/20 text-emerald-400 border-emerald-600/40' };
+  };
+
+  const productosFiltrados = productos.filter((p: any) => {
+    const cumpleCat = categoriaSeleccionada === 'Todas' || p.categoria === categoriaSeleccionada;
+    const estadoObj = obtenerEstadoStockProducto(p);
+    const cumpleStock = filtroEstadoStock === 'Todos' || estadoObj.texto === filtroEstadoStock;
+    return cumpleCat && cumpleStock;
+  });
 
   const cambiarEstadoPedidoDirecto = (pedidoId: number, nuevoEstado: string) => {
     setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
@@ -904,7 +1015,6 @@ function AdminDashboard() {
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-900">
-                          {/* BOTONES SÍ / NO PARA DISPONIBILIDAD */}
                           <div className="flex items-center space-x-2">
                             <span className="text-slate-400 font-bold uppercase text-[10px]">¿Hay stock?</span>
                             <button
@@ -937,7 +1047,6 @@ function AdminDashboard() {
                             </button>
                           </div>
 
-                          {/* CONTROLES PARA SUBIR O BAJAR CANTIDAD DISPONIBLE */}
                           <div className="flex items-center space-x-2">
                             <span className="text-slate-400 font-bold uppercase text-[10px]">Cant. Disponible:</span>
                             <div className="inline-flex items-center border border-slate-700 rounded bg-slate-900">
@@ -1061,14 +1170,11 @@ function AdminDashboard() {
               <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded uppercase">Guardar Cliente</button>
             </form>
 
-            {/* LISTA DE CLIENTES MAYORISTAS CON PESTAÑA DESPLEGABLE */}
             <div className="space-y-4">
               {mayoristas.map((m) => {
                 const estaDesplegado = clienteDesplegadoId === m.id;
                 return (
                   <div key={m.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden text-xs">
-                    
-                    {/* ENCABEZADO DE CADA CLIENTE */}
                     <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div>
                         <div className="flex items-center space-x-2">
@@ -1104,11 +1210,8 @@ function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* PESTAÑA DESPLEGABLE DE EDICIÓN CON BOTÓN DE GUARDAR */}
                     {estaDesplegado && (
                       <div className="bg-slate-950 p-5 border-t border-slate-800 space-y-6">
-                        
-                        {/* CREDENCIALES DE ACCESO */}
                         <div className="space-y-3">
                           <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">🔑 Credenciales de Acceso B2B</h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1139,11 +1242,10 @@ function AdminDashboard() {
                           </div>
                         </div>
 
-                        {/* TARIFARIO POR GRAMO POR CATEGORÍA */}
                         <div className="space-y-3">
                           <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">⚖️ Tarifario por Gramo por Categoría (Q)</h4>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                            {categoriasBase.map((cat) => {
+                            {categoriasBase.map((cat: string) => {
                               const precioActual = m.preciosGramoPorCategoria?.[cat] || 36;
                               return (
                                 <div key={cat} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-center space-y-1">
@@ -1160,10 +1262,8 @@ function AdminDashboard() {
                           </div>
                         </div>
 
-                        {/* CRÉDITOS Y LÍNEA DE FINANCIAMIENTO */}
                         <div className="space-y-3 pt-2">
                           <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">💳 Configuración de Crédito</h4>
-                          
                           <div className="flex items-center space-x-3 bg-slate-900 p-3 rounded border border-slate-800">
                             <input 
                               type="checkbox" 
@@ -1198,7 +1298,6 @@ function AdminDashboard() {
                           )}
                         </div>
 
-                        {/* BOTÓN DE GUARDAR CAMBIOS EN SUPABASE */}
                         <div className="pt-2 flex justify-end">
                           <button 
                             onClick={() => guardarClienteEnSupabase(m)}
@@ -1207,10 +1306,8 @@ function AdminDashboard() {
                             💾 Guardar Cambios en Supabase
                           </button>
                         </div>
-
                       </div>
                     )}
-
                   </div>
                 );
               })}
@@ -1252,28 +1349,101 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* SECCIÓN 5: PRODUCTOS, TALLAS Y DOBLE OPCIÓN MULTIMEDIA (SUPABASE + DRIVE) */}
+        {/* SECCIÓN 5: PRODUCTOS, TALLAS, CATEGORÍAS Y CONTROL DE STOCK */}
         {seccion === 'productos' && (
           <div className="space-y-6 max-w-5xl">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
-                <h2 className="text-xl font-bold font-serif text-amber-400">Inventario con Tallas y Medidas</h2>
-                <p className="text-xs text-slate-400">Selecciona o sube imágenes mediante Google Drive o Supabase Storage.</p>
+                <h2 className="text-xl font-bold font-serif text-amber-400">Inventario, Tallas y Control de Stock</h2>
+                <p className="text-xs text-slate-400">Gestiona categorías, edita, elimina y filtra productos por nivel de stock.</p>
               </div>
-              <button onClick={exportarCatalogoCSV} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded shadow transition">
-                📥 Exportar Catálogo CSV (con links)
-              </button>
+
+              {/* FILTROS POR ESTADO DE STOCK */}
+              <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
+                {['Todos', 'Disponible', 'Baja cantidad', 'Agotado'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setFiltroEstadoStock(st)}
+                    className={`px-3 py-1.5 rounded transition ${
+                      filtroEstadoStock === st ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <form onSubmit={agregarProducto} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Joya con Medidas</h3>
+            {/* GESTIÓN DE CATEGORÍAS (Crear, Editar y Eliminar) */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
+              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📂 Administración de Categorías del Catálogo</h3>
+              
+              <form onSubmit={agregarCategoria} className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Nueva categoría (ej. Relojes)" 
+                  value={nuevaCatInput} 
+                  onChange={(e) => setNuevaCatInput(e.target.value)} 
+                  className="p-2 bg-slate-950 border border-slate-800 rounded text-white flex-1" 
+                />
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded uppercase">
+                  ＋ Crear Categoría
+                </button>
+              </form>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                {categoriasBase.map((cat: string, index: number) => (
+                  <div key={cat} className="bg-slate-950 border border-slate-800 p-2 rounded-lg flex items-center space-x-2">
+                    {editandoCategoriaIndex === index ? (
+                      <div className="flex items-center space-x-1">
+                        <input 
+                          type="text" 
+                          value={nombreCatEditada} 
+                          onChange={(e) => setNombreCatEditada(e.target.value)} 
+                          className="p-1 bg-slate-900 border border-amber-500 rounded text-amber-400 w-28"
+                          autoFocus
+                        />
+                        <button type="button" onClick={() => guardarEdicionCategoria(index)} className="bg-emerald-600 text-white px-2 py-1 rounded font-bold">✓</button>
+                        <button type="button" onClick={() => setEditandoCategoriaIndex(null)} className="bg-slate-800 text-slate-300 px-2 py-1 rounded">✕</button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-bold text-amber-400">{cat}</span>
+                        <button type="button" onClick={() => { setEditandoCategoriaIndex(index); setNombreCatEditada(cat); }} className="text-slate-400 hover:text-white px-1">✏️</button>
+                        <button type="button" onClick={() => eliminarCategoria(cat)} className="text-rose-400 hover:text-rose-300 px-1 font-bold">✕</button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* FORMULARIO DE REGISTRO / EDICIÓN DE PRODUCTO */}
+            <form onSubmit={guardarOActualizarProducto} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <h3 className="font-bold uppercase text-amber-400">
+                  {editandoProductoId !== null ? '✏️ Editando Joya ID: ' + editandoProductoId : '＋ Registrar Joya con Medidas'}
+                </h3>
+                {editandoProductoId !== null && (
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setEditandoProductoId(null);
+                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
+                    }} 
+                    className="text-rose-400 font-bold hover:underline"
+                  >
+                    Cancelar Edición
+                  </button>
+                )}
+              </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <input type="text" placeholder="SKU (ej: ANI-012)" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Código de Barras" value={nuevoProd.barcode} onChange={(e) => setNuevoProd({ ...nuevoProd, barcode: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
                 <input type="text" placeholder="Nombre" value={nuevoProd.nombre} onChange={(e) => setNuevoProd({ ...nuevoProd, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <select value={nuevoProd.categoria} onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
-                  {categoriasBase.map(c => <option key={c} value={c}>{c}</option>)}
+                  {categoriasBase.map((c: string) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
@@ -1283,7 +1453,6 @@ function AdminDashboard() {
                 <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia (Doble Opción) *</label>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Opción 1: Banco de imágenes / Galería tipo Drive */}
                   <div 
                     onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
                     className="py-4 px-3 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition"
@@ -1292,7 +1461,6 @@ function AdminDashboard() {
                     <span className="text-[10px] text-slate-400">({nuevoProd.fotos.length} seleccionadas)</span>
                   </div>
 
-                  {/* Opción 2: Subir archivo directamente a Supabase Storage */}
                   <label className="py-4 px-3 border-2 border-dashed border-emerald-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition">
                     <span className="font-bold text-emerald-300 text-xs">
                       {subiendoArchivoSupabase ? 'Subiendo a Supabase...' : '☁️ Subir Foto a Supabase Storage'}
@@ -1302,7 +1470,6 @@ function AdminDashboard() {
                   </label>
                 </div>
 
-                {/* MINIATURAS SELECCIONADAS */}
                 {nuevoProd.fotos.length > 0 && (
                   <div className="flex gap-2 pt-2 overflow-x-auto">
                     {nuevoProd.fotos.map((imgUrl, idx) => (
@@ -1325,22 +1492,49 @@ function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded text-xs uppercase">Guardar Joya</button>
+
+              <button type="submit" className="w-full bg-amber-500 text-slate-950 font-bold py-2.5 rounded text-xs uppercase shadow">
+                {editandoProductoId !== null ? '💾 Guardar Cambios de la Joya' : '💎 Registrar Joya'}
+              </button>
             </form>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {productosFiltrados.map((p) => (
-                <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
-                  <div className="flex space-x-3 items-center">
-                    <img src={p.fotos[0]} alt={p.nombre} className="w-16 h-16 object-cover rounded bg-slate-800 shrink-0 border border-slate-700" />
-                    <div>
-                      <p className="font-bold text-white text-sm">{p.nombre}</p>
-                      <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
-                      <p className="font-bold text-emerald-400">Precio Público: Q{p.precioMinorista}</p>
+              {productosFiltrados.map((p: any) => {
+                const estadoStock = obtenerEstadoStockProducto(p);
+                return (
+                  <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 text-xs flex flex-col justify-between">
+                    <div className="flex space-x-3 items-center">
+                      <img src={p.fotos[0]} alt={p.nombre} className="w-16 h-16 object-cover rounded bg-slate-800 shrink-0 border border-slate-700" />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <p className="font-bold text-white text-sm">{p.nombre}</p>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${estadoStock.clase}`}>
+                            {estadoStock.texto}
+                          </span>
+                        </div>
+                        <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span> | Cat: <span className="text-amber-400">{p.categoria}</span></p>
+                        <p className="font-bold text-emerald-400">Precio Público: Q{p.precioMinorista}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Variantes: {p.variantes.map((v: any) => `${v.medida} (${v.stock} un.)`).join(', ')}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                      <button 
+                        onClick={() => cargarProductoParaEditar(p)}
+                        className="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold px-3 py-1 rounded transition"
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button 
+                        onClick={() => eliminarProducto(p.id)}
+                        className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold px-3 py-1 rounded transition"
+                      >
+                        🗑️ Eliminar
+                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

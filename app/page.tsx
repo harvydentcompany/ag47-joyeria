@@ -8,6 +8,9 @@ export default function TiendaPublica() {
 
   const [vistaActual, setVistaActual] = useState<'inicio' | 'categorias' | 'catalogo' | 'carrito' | 'revision' | 'confirmado' | 'login' | 'registro_mayorista' | 'historial'>('inicio');
   
+  // ESTADO PARA EL MENÚ MÉVIL (HAMBURGUESA)
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+
   const [esMayorista, setEsMayorista] = useState(false);
   const [clienteMayoristaActivo, setClienteMayoristaActivo] = useState<any>(null);
 
@@ -21,7 +24,6 @@ export default function TiendaPublica() {
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
-  // DATOS DE CONFIGURACIÓN INSTITUCIONAL, LOGO Y BANNER DESDE SUPABASE
   const [infoAdmin, setInfoAdmin] = useState({
     logoUrl: '',
     bannerUrl: '',
@@ -29,10 +31,9 @@ export default function TiendaPublica() {
     subtitulo: 'Especial de Temporada - Joyería en Plata 925',
     direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
     telefonos: ['+502 5555-1234'],
-    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
+    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925.'
   });
 
-  // CATEGORÍAS Y PRODUCTOS CARGADOS DIRECTAMENTE DESDE SUPABASE
   const [todasLasCategorias, setTodasLasCategorias] = useState<any[]>([
     { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
     { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
@@ -44,7 +45,6 @@ export default function TiendaPublica() {
 
   const [productos, setProductos] = useState<any[]>([]);
 
-  // FUNCIÓN PARA CARGAR DATOS EN TIEMPO REAL DESDE SUPABASE
   const cargarDatosDesdeSupabase = async () => {
     if (typeof window !== 'undefined') {
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
@@ -54,7 +54,6 @@ export default function TiendaPublica() {
     }
 
     try {
-      // 1. Cargar Configuración de Tienda
       const { data: configData } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
       if (configData && configData.datos) {
         setInfoAdmin({
@@ -68,10 +67,8 @@ export default function TiendaPublica() {
         });
       }
 
-      // 2. Cargar Productos desde Supabase
       const { data: productosData, error: errProd } = await supabase.from('productos').select('*');
       if (!errProd && productosData && productosData.length > 0) {
-        // Mapeamos los datos por si vienen estructurados desde la base de datos
         const prodsMapeados = productosData.map((p: any) => ({
           id: p.id,
           sku: p.sku || p.codigo || 'SKU-000',
@@ -87,7 +84,6 @@ export default function TiendaPublica() {
         setProductos(prodsMapeados);
       }
 
-      // 3. Cargar Categorías desde Supabase
       const { data: catsData, error: errCats } = await supabase.from('categorias').select('*');
       if (!errCats && catsData && catsData.length > 0) {
         const catsMapeadas = catsData.map((c: any, idx: number) => ({
@@ -105,7 +101,6 @@ export default function TiendaPublica() {
   useEffect(() => {
     cargarDatosDesdeSupabase();
 
-    // Suscripción en tiempo real a cambios en Supabase para actualización instantánea en tablets y celulares
     const channel = supabase
       .channel('cambios-tienda')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
@@ -174,6 +169,7 @@ export default function TiendaPublica() {
   const irACategoriaEspecifica = (nombreCat: string) => {
     setCategoriaFiltro(nombreCat);
     setVistaActual('catalogo');
+    setMenuMovilAbierto(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -412,7 +408,7 @@ export default function TiendaPublica() {
       <div>
         <div className="bg-[#f2ece1] text-amber-950 text-[11px] font-semibold py-1.5 border-b border-amber-200/60 px-4 flex justify-between items-center max-w-7xl mx-auto">
           <span className="tracking-widest uppercase text-center flex-1">{textoBarraAviso}</span>
-          <div className="flex gap-3 items-center">
+          <div className="hidden sm:flex gap-3 items-center">
             <button 
               onClick={() => setVistaActual('historial')} 
               className="font-mono text-[10px] bg-zinc-900 hover:bg-amber-800 text-amber-300 hover:text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition font-bold"
@@ -427,7 +423,7 @@ export default function TiendaPublica() {
             ) : (
               <button 
                 onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); }} 
-                className="hidden sm:inline-block font-mono text-[10px] bg-amber-800 hover:bg-amber-900 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition"
+                className="font-mono text-[10px] bg-amber-800 hover:bg-amber-900 text-white px-2.5 py-0.5 rounded uppercase tracking-wider transition"
               >
                 🔐 Iniciar Sesión Mayoristas
               </button>
@@ -438,23 +434,34 @@ export default function TiendaPublica() {
         <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
-            {/* LOGOTIPO DINÁMICO */}
-            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
-              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0 shadow-sm">
-                {infoAdmin.logoUrl ? (
-                  <img src={infoAdmin.logoUrl} alt="Logo AG47" className="w-full h-full object-cover" />
-                ) : (
-                  <span>AG</span>
-                )}
-              </div>
-              <div>
-                <span className="font-serif font-bold text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>
-                <span className="text-[10px] uppercase font-mono tracking-widest text-amber-800 font-semibold">
-                  {esMayorista ? 'Portal Mayorista B2B' : 'Distribuidor de Platería'}
-                </span>
+            {/* BOTÓN HAMBURGUESA PARA MÓVIL (IZQUIERDA) */}
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => setMenuMovilAbierto(!menuMovilAbierto)} 
+                className="md:hidden p-2 text-zinc-800 hover:text-amber-700 focus:outline-none"
+                aria-label="Abrir menú"
+              >
+                <span className="text-2xl font-bold">{menuMovilAbierto ? '✕' : '☰'}</span>
+              </button>
+
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
+                <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0 shadow-sm">
+                  {infoAdmin.logoUrl ? (
+                    <img src={infoAdmin.logoUrl} alt="Logo AG47" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>AG</span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>
+                  <span className="text-[9px] sm:text-[10px] uppercase font-mono tracking-widest text-amber-800 font-semibold">
+                    {esMayorista ? 'Portal Mayorista B2B' : 'Distribuidor de Platería'}
+                  </span>
+                </div>
               </div>
             </div>
 
+            {/* NAVEGACIÓN ESCRITORIO */}
             <nav className="hidden md:flex items-center space-x-8 text-xs font-bold uppercase tracking-wider text-zinc-700">
               <button onClick={() => setVistaActual('inicio')} className={`transition ${vistaActual === 'inicio' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Inicio</button>
               <button onClick={() => setVistaActual('categorias')} className={`transition ${vistaActual === 'categorias' ? 'text-amber-800 border-b-2 border-amber-700 pb-1' : 'hover:text-amber-700'}`}>Categorías</button>
@@ -465,8 +472,9 @@ export default function TiendaPublica() {
               )}
             </nav>
 
-            <div className="flex items-center space-x-4">
-              <div className="relative hidden sm:block">
+            {/* CARRITO Y BÚSQUEDA */}
+            <div className="flex items-center space-x-3">
+              <div className="relative hidden lg:block">
                 <input 
                   type="text" 
                   placeholder="Buscar producto..." 
@@ -489,11 +497,74 @@ export default function TiendaPublica() {
               </button>
             </div>
           </div>
+
+          {/* MENÚ DESPLEGABLE MÓVIL (TIPO LISTADO CON LAS TRES RAYITAS) */}
+          {menuMovilAbierto && (
+            <div className="md:hidden bg-white border-t border-[#ebd9c1] px-6 py-4 space-y-4 shadow-xl">
+              <div className="pb-2 border-b border-zinc-100">
+                <input 
+                  type="text" 
+                  placeholder="Buscar producto..." 
+                  value={busqueda} 
+                  onChange={(e) => { setBusqueda(e.target.value); setVistaActual('catalogo'); }}
+                  className="w-full p-2.5 bg-[#f5efe4] border border-[#e5d9c5] rounded-md text-xs focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div className="flex flex-col space-y-3 font-bold text-xs uppercase tracking-wider text-zinc-800">
+                <button 
+                  onClick={() => { setVistaActual('inicio'); setMenuMovilAbierto(false); }} 
+                  className="text-left py-2 px-3 rounded hover:bg-[#f7f2e8] transition"
+                >
+                  🏠 Inicio
+                </button>
+                <button 
+                  onClick={() => { setVistaActual('categorias'); setMenuMovilAbierto(false); }} 
+                  className="text-left py-2 px-3 rounded hover:bg-[#f7f2e8] transition"
+                >
+                  📂 Categorías
+                </button>
+                <button 
+                  onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); setMenuMovilAbierto(false); }} 
+                  className="text-left py-2 px-3 rounded hover:bg-[#f7f2e8] transition"
+                >
+                  💎 Catálogo Completo
+                </button>
+                <button 
+                  onClick={() => { setVistaActual('historial'); setMenuMovilAbierto(false); }} 
+                  className="text-left py-2 px-3 rounded hover:bg-[#f7f2e8] transition flex justify-between items-center"
+                >
+                  <span>📦 Mis Pedidos</span>
+                  <span className="bg-amber-700 text-white px-2 py-0.5 rounded-full text-[10px]">{misPedidos.length}</span>
+                </button>
+
+                <div className="pt-2 border-t border-zinc-200">
+                  {esMayorista ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-amber-800 font-mono">👑 Mayorista: <strong>{clienteMayoristaActivo?.nombre}</strong></p>
+                      <button 
+                        onClick={() => { cerrarSesionMayorista(); setMenuMovilAbierto(false); }} 
+                        className="w-full bg-rose-700 text-white py-2 rounded text-center text-xs uppercase"
+                      >
+                        Cerrar Sesión
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => { setVistaActual('login'); setSolicitudEnviada(false); setMenuMovilAbierto(false); }} 
+                      className="w-full bg-amber-800 hover:bg-amber-900 text-white py-2.5 rounded text-center uppercase tracking-wider"
+                    >
+                      🔐 Iniciar Sesión Mayoristas
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </header>
 
         {vistaActual === 'inicio' && (
           <>
-            {/* SECCIÓN HERO / BANNER PRINCIPAL */}
             <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
                 <div className="max-w-xl space-y-6 text-center md:text-left">

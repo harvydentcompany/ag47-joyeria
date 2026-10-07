@@ -118,56 +118,45 @@ function PosDashboardContent() {
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(inventario));
   }, [inventario]);
 
-  // 2. CARGADOR ROBUSTO DE CLIENTES DESDE EL ADMIN (BUSCA EN TODAS LAS LLAVES POSIBLES)
-  const obtenerClientesAdmin = () => {
+  // 2. LECTURA DE CLIENTES DESDE LA LLAVE DE LA PÁGINA / ADMIN
+  const obtenerClientesPagina = () => {
     if (typeof window === 'undefined') return [clienteMinoristaBase];
 
-    let datosCrudos: any[] = [];
-    const llavesIntentar = ['ag47_mayoristas_admin', 'ag47_clientes', 'clientes_ag47', 'ag47_admin_clientes'];
-
-    for (const llave of llavesIntentar) {
-      const contenido = localStorage.getItem(llave);
-      if (contenido) {
-        try {
-          const parsed = JSON.parse(contenido);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            datosCrudos = parsed;
-            break;
-          }
-        } catch (e) {}
-      }
+    const guardados = localStorage.getItem('ag47_mayoristas_admin');
+    if (guardados) {
+      try {
+        const parsed = JSON.parse(guardados);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const mayoristasMapeados = parsed.map((m: any) => ({
+            id: m.id || String(Math.random()),
+            nombre: m.nombre || 'Sin Nombre',
+            telefono: m.telefono || '50200000000',
+            tipo: 'b2b',
+            tarifaGramo: Number(m.preciosGramoPorCategoria?.Anillos || m.precios_gramo?.Anillos || 36),
+            tieneCredito: Boolean(m.tieneCredito || m.tiene_credito),
+            limiteCredito: Number(m.limiteCredito || m.limite_credito || 0),
+            saldoDeuda: Number(m.saldoDeuda || m.saldo_deuda || 0),
+            diasCredito: Number(m.diasCredito || m.dias_credito || 15)
+          }));
+          return [clienteMinoristaBase, ...mayoristasMapeados];
+        }
+      } catch (e) {}
     }
 
-    // Si no encontró nada en localStorage, provee ejemplos funcionales para prueba
-    if (datosCrudos.length === 0) {
-      datosCrudos = [
-        { id: '101', nombre: 'María López (Admin)', telefono: '50255550101', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
-        { id: '102', nombre: 'Marta Gómez (Admin)', telefono: '50255550202', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 }
-      ];
-    }
-
-    const mayoristasMapeados = datosCrudos.map((m: any) => ({
-      id: m.id || String(Math.random()),
-      nombre: m.nombre || m.name || 'Sin Nombre',
-      telefono: m.telefono || m.phone || '50200000000',
-      tipo: 'b2b',
-      tarifaGramo: Number(m.tarifaGramo || m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36),
-      tieneCredito: Boolean(m.tieneCredito || m.tiene_credito),
-      limiteCredito: Number(m.limiteCredito || m.limite_credito || 0),
-      saldoDeuda: Number(m.saldoDeuda || m.saldo_deuda || 0),
-      diasCredito: Number(m.diasCredito || m.dias_credito || 15)
-    }));
-
-    return [clienteMinoristaBase, ...mayoristasMapeados];
+    return [
+      clienteMinoristaBase,
+      { id: '101', nombre: 'María López', telefono: '50255550101', tipo: 'b2b', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
+      { id: '102', nombre: 'Marta Gómez', telefono: '50255550202', tipo: 'b2b', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 }
+    ];
   };
 
-  const [listaClientes, setListaClientes] = useState(obtenerClientesAdmin);
+  const [listaClientes, setListaClientes] = useState(obtenerClientesPagina);
 
-  // Sincronización automática continua cada vez que cambie localStorage o se recargue
+  // Sincronización automática activa en tiempo real
   useEffect(() => {
-    const actualizar = () => setListaClientes(obtenerClientesAdmin());
+    const actualizar = () => setListaClientes(obtenerClientesPagina());
     window.addEventListener('storage', actualizar);
-    const intervalo = setInterval(actualizar, 1500); // Polling activo para asegurar tiempo real
+    const intervalo = setInterval(actualizar, 2000);
     return () => {
       window.removeEventListener('storage', actualizar);
       clearInterval(intervalo);
@@ -394,16 +383,16 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Clientes y Stock Sincronizados con Admin</p>
+            <p className="text-xs text-slate-400">Inventario y Clientes Sincronizados</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setListaClientes(obtenerClientesAdmin())}
+            onClick={() => setListaClientes(obtenerClientesPagina())}
             className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
           >
-            🔄 Recargar Clientes
+            🔄 Sincronizar Clientes
           </button>
           <button 
             onClick={() => router.push('/admin')}

@@ -25,11 +25,11 @@ export default function TiendaPublica() {
   const [infoAdmin, setInfoAdmin] = useState({
     logoUrl: '',
     bannerUrl: '',
-    titulo: 'Distribuidor de Platería Fina',
-    subtitulo: 'Colección Plata Ley 925',
-    direcciones: ['Ciudad de Guatemala'],
-    telefonos: ['(+502) 5555-0101'],
-    nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
+    titulo: 'Colección Mayorista y Minorista',
+    subtitulo: 'Especial de Temporada - Joyería en Plata 925',
+    direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
+    telefonos: ['+502 5555-1234'],
+    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
   });
 
   // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON EL ADMIN Y LOCALSTORAGE
@@ -148,11 +148,11 @@ export default function TiendaPublica() {
           setInfoAdmin({
             logoUrl: parsed.logoUrl || '',
             bannerUrl: parsed.bannerUrl || '',
-            titulo: parsed.titulo || 'Distribuidor de Platería Fina',
-            subtitulo: parsed.subtitulo || 'Colección Plata Ley 925',
-            direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
-            telefonos: parsed.telefonos || ['(+502) 5555-0101'],
-            nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
+            titulo: parsed.titulo || 'Colección Mayorista y Minorista',
+            subtitulo: parsed.subtitulo || 'Especial de Temporada - Joyería en Plata 925',
+            direcciones: parsed.direcciones || ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
+            telefonos: parsed.telefonos || ['+502 5555-1234'],
+            nosotrosTexto: parsed.nosotrosTexto || 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
           });
         } catch(e) {}
       }
@@ -163,11 +163,11 @@ export default function TiendaPublica() {
           setInfoAdmin({
             logoUrl: data.datos.logoUrl || '',
             bannerUrl: data.datos.bannerUrl || '',
-            titulo: data.datos.titulo || 'Distribuidor de Platería Fina',
-            subtitulo: data.datos.subtitulo || 'Colección Plata Ley 925',
-            direcciones: data.datos.direcciones || ['Ciudad de Guatemala'],
-            telefonos: data.datos.telefonos || ['(+502) 5555-0101'],
-            nosotrosTexto: data.datos.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
+            titulo: data.datos.titulo || 'Colección Mayorista y Minorista',
+            subtitulo: data.datos.subtitulo || 'Especial de Temporada - Joyería en Plata 925',
+            direcciones: data.datos.direcciones || ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
+            telefonos: data.datos.telefonos || ['+502 5555-1234'],
+            nosotrosTexto: data.datos.nosotrosTexto || 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
           });
         }
       } catch (err) {}

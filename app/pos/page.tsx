@@ -70,52 +70,18 @@ export default function PosPage() {
   );
 }
 
-// Clientes B2B / VIP sincronizados
-const clientesVIP = [
-  { 
-    id: 'PUBLICO', 
-    nombre: 'Cliente General (Minorista)', 
-    telefono: '50200000000',
-    tipo: 'b2c',
-    tieneCredito: false,
-    limiteCredito: 0,
-    saldoDeuda: 0,
-    diasCredito: 0
-  },
-  { 
-    id: '101', 
-    nombre: 'María López', 
-    telefono: '50255550101',
-    tipo: 'b2b', 
-    tarifaGramo: 36,
-    tieneCredito: true,
-    limiteCredito: 5000,
-    saldoDeuda: 1200,
-    diasCredito: 30
-  },
-  { 
-    id: '102', 
-    nombre: 'Marta Gómez', 
-    telefono: '50255550202',
-    tipo: 'b2b', 
-    tarifaGramo: 33,
-    tieneCredito: false,
-    limiteCredito: 0,
-    saldoDeuda: 0,
-    diasCredito: 0
-  },
-  { 
-    id: '103', 
-    nombre: 'Carlos Pérez', 
-    telefono: '50255550303',
-    tipo: 'b2b', 
-    tarifaGramo: 35,
-    tieneCredito: true,
-    limiteCredito: 3000,
-    saldoDeuda: 500,
-    diasCredito: 15
-  },
-];
+// Cliente base por defecto (Minorista)
+const clienteMinoristaBase = { 
+  id: 'PUBLICO', 
+  nombre: 'Cliente General (Minorista)', 
+  telefono: '50200000000',
+  tipo: 'b2c',
+  tarifaGramo: 35,
+  tieneCredito: false,
+  limiteCredito: 0,
+  saldoDeuda: 0,
+  diasCredito: 0
+};
 
 function PosDashboardContent() {
   const router = useRouter();
@@ -153,12 +119,70 @@ function PosDashboardContent() {
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(inventario));
   }, [inventario]);
 
-  const [listaClientes] = useState(clientesVIP);
+  // LISTA DE CLIENTES VINCULADA EN TIEMPO REAL CON EL ADMIN Y SUPABASE (ag47_mayoristas_admin)
+  const [listaClientes, setListaClientes] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardadosMayoristas = localStorage.getItem('ag47_mayoristas_admin');
+      if (guardadosMayoristas) {
+        try {
+          const parsed = JSON.parse(guardadosMayoristas);
+          const mayoristasMapeados = parsed.map((m: any) => ({
+            id: m.id,
+            nombre: m.nombre,
+            telefono: m.telefono || '50200000000',
+            tipo: 'b2b',
+            tarifaGramo: m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
+            tieneCredito: m.tieneCredito || m.tiene_credito || false,
+            limiteCredito: m.limiteCredito || m.limite_credito || 0,
+            saldoDeuda: m.saldoDeuda || 0,
+            diasCredito: m.diasCredito || m.dias_credito || 15
+          }));
+          return [clienteMinoristaBase, ...mayoristasMapeados];
+        } catch(e) {}
+      }
+    }
+    return [
+      clienteMinoristaBase,
+      { id: '101', nombre: 'María López', telefono: '50255550101', tipo: 'b2b', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
+      { id: '102', nombre: 'Marta Gómez', telefono: '50255550202', tipo: 'b2b', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 },
+      { id: '103', nombre: 'Carlos Pérez', telefono: '50255550303', tipo: 'b2b', tarifaGramo: 35, tieneCredito: true, limiteCredito: 3000, saldoDeuda: 500, diasCredito: 15 },
+    ];
+  });
+
+  // EFECTO DE ESCUCHA EN TIEMPO REAL PARA ACTUALIZAR CLIENTES SI SE MODIFICAN EN EL ADMIN
+  useEffect(() => {
+    const sincronizarClientesEnTiempoReal = () => {
+      if (typeof window !== 'undefined') {
+        const guardadosMayoristas = localStorage.getItem('ag47_mayoristas_admin');
+        if (guardadosMayoristas) {
+          try {
+            const parsed = JSON.parse(guardadosMayoristas);
+            const mayoristasMapeados = parsed.map((m: any) => ({
+              id: m.id,
+              nombre: m.nombre,
+              telefono: m.telefono || '50200000000',
+              tipo: 'b2b',
+              tarifaGramo: m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
+              tieneCredito: m.tieneCredito || m.tiene_credito || false,
+              limiteCredito: m.limiteCredito || m.limite_credito || 0,
+              saldoDeuda: m.saldoDeuda || 0,
+              diasCredito: m.diasCredito || m.dias_credito || 15
+            }));
+            setListaClientes([clienteMinoristaBase, ...mayoristasMapeados]);
+          } catch(e) {}
+        }
+      }
+    };
+
+    window.addEventListener('storage', sincronizarClientesEnTiempoReal);
+    return () => window.removeEventListener('storage', sincronizarClientesEnTiempoReal);
+  }, []);
+
   const [busquedaProd, setBusquedaProd] = useState('');
   const [skuEscaner, setSkuEscaner] = useState('');
   
   const [busquedaCliente, setBusquedaCliente] = useState('');
-  const [clienteSeleccionado, setClienteSeleccionado] = useState(clientesVIP[0]);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(listaClientes[0]);
   const [mostrarDropdownCliente, setMostrarDropdownCliente] = useState(false);
 
   const [carrito, setCarrito] = useState<any[]>([]);
@@ -195,7 +219,7 @@ function PosDashboardContent() {
     }
 
     const precioUnitario = clienteSeleccionado.tipo === 'b2b' 
-      ? variante.peso * (clienteSeleccionado.tarifaGramo || 35) 
+      ? variante.peso * (clienteSeleccionado.tarifaGramo || 36) 
       : prod.precioMinorista;
 
     const itemIdUnico = `${prod.id}-${variante.medida}`;
@@ -232,7 +256,7 @@ function PosDashboardContent() {
 
     const busq = skuEscaner.trim().toLowerCase();
     const productoEncontrado = inventario.find(
-      p => p.sku.toLowerCase() === busq || (p.barcode && p.barcode.toLowerCase() === busq)
+      (p: any) => p.sku.toLowerCase() === busq || (p.barcode && p.barcode.toLowerCase() === busq)
     );
 
     if (productoEncontrado) {
@@ -251,7 +275,7 @@ function PosDashboardContent() {
         if (nuevaCant <= 0) return null;
         
         // Buscar stock en inventario
-        const prodOriginal = inventario.find(p => p.id === item.productoId);
+        const prodOriginal = inventario.find((p: any) => p.id === item.productoId);
         const varOriginal = prodOriginal?.variantes?.find((v: any) => v.medida === item.medida);
         const stockMax = varOriginal ? varOriginal.stock : 10;
 
@@ -304,7 +328,7 @@ function PosDashboardContent() {
     }
 
     // DESCONTAR STOCK REAL DE CADA VARIANTE EN EL INVENTARIO GLOBAL
-    const nuevoInventario = inventario.map(prod => {
+    const nuevoInventario = inventario.map((prod: any) => {
       const itemsDelProd = carrito.filter(c => c.productoId === prod.id);
       if (itemsDelProd.length > 0) {
         const variantesActualizadas = prod.variantes.map((v: any) => {
@@ -389,7 +413,7 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Inventario Sincronizado en Tiempo Real</p>
+            <p className="text-xs text-slate-400">Clientes y Stock Sincronizados en Tiempo Real</p>
           </div>
         </div>
 
@@ -444,6 +468,7 @@ function PosDashboardContent() {
               className="flex-1 bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
             />
 
+            {/* BUSCADOR DESPLEGABLE DE CLIENTES VINCULADOS EN TIEMPO REAL */}
             <div className="relative flex-1">
               <div 
                 onClick={() => setMostrarDropdownCliente(!mostrarDropdownCliente)}
@@ -508,8 +533,8 @@ function PosDashboardContent() {
           {/* GRID DE PRODUCTOS EN TIEMPO REAL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {inventario
-              .filter(p => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase()) || p.categoria.toLowerCase().includes(busquedaProd.toLowerCase()))
-              .map(prod => {
+              .filter((p: any) => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase()) || p.categoria.toLowerCase().includes(busquedaProd.toLowerCase()))
+              .map((prod: any) => {
                 const stockTotal = prod.variantes?.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0) || 0;
                 return (
                   <div key={prod.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-3">

@@ -90,44 +90,24 @@ function PosDashboardContent() {
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // 1. CARGADOR INTELIGENTE DE INVENTARIO (BUSCA EN TODAS LAS LLAVES DEL ADMIN)
+  // 1. CARGADOR EXCLUSIVO DEL INVENTARIO DEL ADMIN (SIN DATOS DE MUESTRA)
   const cargarInventarioAdmin = () => {
     if (typeof window === 'undefined') return [];
 
-    const llavesInventario = ['ag47_inventario_admin', 'ag47_productos', 'productos_ag47'];
-    for (const llave of llavesInventario) {
-      const guardados = localStorage.getItem(llave);
-      if (guardados) {
-        try {
-          const parsed = JSON.parse(guardados);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Asegurar que cada producto tenga variantes válidas para el POS
-            return parsed.map((p: any) => ({
-              ...p,
-              precioMinorista: Number(p.precioMinorista || p.precio || 0),
-              variantes: p.variantes && p.variantes.length > 0 ? p.variantes : [{ medida: 'Única', peso: p.peso || 5, stock: p.stock || 10 }]
-            }));
-          }
-        } catch(e) {}
-      }
+    const guardados = localStorage.getItem('ag47_inventario_admin');
+    if (guardados) {
+      try {
+        const parsed = JSON.parse(guardados);
+        if (Array.isArray(parsed)) {
+          return parsed.map((p: any) => ({
+            ...p,
+            precioMinorista: Number(p.precioMinorista || p.precio || 0),
+            variantes: p.variantes && p.variantes.length > 0 ? p.variantes : [{ medida: 'Única', peso: p.peso || 5, stock: p.stock || 0 }]
+          }));
+        }
+      } catch(e) {}
     }
-
-    // Inventario por defecto si no hay registros
-    return [
-      { 
-        id: 101, 
-        sku: 'ANI-012', 
-        barcode: '740100200301',
-        nombre: 'Anillo Zirconia Garra', 
-        categoria: 'Anillos', 
-        precioMinorista: 220, 
-        fotos: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
-        variantes: [
-          { id: 'v1', medida: 'Talla 6', peso: 3.2, stock: 5 },
-          { id: 'v2', medida: 'Talla 7', peso: 3.5, stock: 8 },
-        ]
-      }
-    ];
+    return [];
   };
 
   const [inventario, setInventario] = useState(cargarInventarioAdmin);
@@ -135,11 +115,14 @@ function PosDashboardContent() {
   // Sincronización automática de inventario en tiempo real
   useEffect(() => {
     const sincronizarInventario = () => {
-      setInventario(cargarInventarioAdmin());
+      const actualizados = cargarInventarioAdmin();
+      if (actualizados.length > 0) {
+        setInventario(actualizados);
+      }
     };
 
     window.addEventListener('storage', sincronizarInventario);
-    const intervalo = setInterval(sincronizarInventario, 2000); // Polling activo cada 2 segundos
+    const intervalo = setInterval(sincronizarInventario, 1500);
 
     return () => {
       window.removeEventListener('storage', sincronizarInventario);
@@ -147,8 +130,8 @@ function PosDashboardContent() {
     };
   }, []);
 
-  // Guardar cambios de inventario (cuando se vende algo) en localStorage para que el Admin lo reciba
-  const guardarInventarioActualizado = (nuevoInventario: any[]) => {
+  // Guardar inventario actualizado en el admin cuando se procesa una venta en el POS
+  const guardarInventarioEnAdmin = (nuevoInventario: any[]) => {
     setInventario(nuevoInventario);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
   };
@@ -354,7 +337,7 @@ function PosDashboardContent() {
       return prod;
     });
 
-    guardarInventarioActualizado(nuevoInventario);
+    guardarInventarioEnAdmin(nuevoInventario);
 
     const ticket = {
       folio: `AG-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -424,7 +407,7 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Inventario y Stock Sincronizados</p>
+            <p className="text-xs text-slate-400">Inventario Sincronizado en Tiempo Real</p>
           </div>
         </div>
 
@@ -549,49 +532,56 @@ function PosDashboardContent() {
 
           {/* GRID DE PRODUCTOS EN TIEMPO REAL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {inventario
-              .filter((p: any) => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase()) || p.categoria.toLowerCase().includes(busquedaProd.toLowerCase()))
-              .map((prod: any) => {
-                const stockTotal = prod.variantes?.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0) || 0;
-                return (
-                  <div key={prod.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-3">
-                    <div className="flex gap-3 items-center">
-                      <img src={prod.fotos?.[0]} alt={prod.nombre} className="w-14 h-14 object-cover rounded-xl border border-slate-700 bg-slate-950" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">{prod.sku}</span>
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${stockTotal > 2 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                            Stock Total: {stockTotal}
-                          </span>
+            {inventario.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-slate-500 text-xs font-mono bg-slate-900 rounded-2xl border border-slate-800">
+                📦 No hay productos registrados en el administrador. Agrega piezas desde tu panel admin.
+              </div>
+            ) : (
+              inventario
+                .filter((p: any) => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase()) || p.categoria.toLowerCase().includes(busquedaProd.toLowerCase()))
+                .map((prod: any) => {
+                  const stockTotal = prod.variantes?.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0) || 0;
+                  const fotoUrl = prod.fotos?.[0] || 'https://via.placeholder.com/150';
+                  return (
+                    <div key={prod.id} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col justify-between space-y-3">
+                      <div className="flex gap-3 items-center">
+                        <img src={fotoUrl} alt={prod.nombre} className="w-14 h-14 object-cover rounded-xl border border-slate-700 bg-slate-950" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-mono">{prod.sku}</span>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${stockTotal > 2 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                              Stock: {stockTotal}
+                            </span>
+                          </div>
+                          <h3 className="text-xs font-bold text-white mt-1 truncate">{prod.nombre}</h3>
+                          <p className="text-[10px] text-emerald-400 font-mono font-bold">Público: Q{prod.precioMinorista}</p>
                         </div>
-                        <h3 className="text-xs font-bold text-white mt-1 truncate">{prod.nombre}</h3>
-                        <p className="text-[10px] text-emerald-400 font-mono font-bold">Público: Q{prod.precioMinorista}</p>
                       </div>
-                    </div>
 
-                    {/* SELECCIÓN DE TALLA / VARIANTE */}
-                    <div className="space-y-1 pt-2 border-t border-slate-800">
-                      <p className="text-[10px] text-slate-400 uppercase font-mono">Seleccionar Talla / Medida:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {prod.variantes?.map((v: any, idx: number) => (
-                          <button
-                            key={idx}
-                            disabled={v.stock <= 0}
-                            onClick={() => agregarAlCarrito(prod, idx)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border transition ${
-                              v.stock > 0 
-                                ? 'bg-slate-950 hover:bg-amber-500 hover:text-slate-950 border-slate-700 text-amber-300' 
-                                : 'bg-slate-950/40 border-slate-900 text-slate-600 cursor-not-allowed'
-                            }`}
-                          >
-                            {v.medida} ({v.stock}disp)
-                          </button>
-                        ))}
+                      {/* SELECCIÓN DE TALLA / VARIANTE */}
+                      <div className="space-y-1 pt-2 border-t border-slate-800">
+                        <p className="text-[10px] text-slate-400 uppercase font-mono">Seleccionar Talla / Medida:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {prod.variantes?.map((v: any, idx: number) => (
+                            <button
+                              key={idx}
+                              disabled={v.stock <= 0}
+                              onClick={() => agregarAlCarrito(prod, idx)}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border transition ${
+                                v.stock > 0 
+                                  ? 'bg-slate-950 hover:bg-amber-500 hover:text-slate-950 border-slate-700 text-amber-300' 
+                                  : 'bg-slate-950/40 border-slate-900 text-slate-600 cursor-not-allowed'
+                              }`}
+                            >
+                              {v.medida} ({v.stock}disp)
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+            )}
           </div>
 
         </div>

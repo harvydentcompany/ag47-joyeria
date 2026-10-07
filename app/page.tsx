@@ -21,8 +21,9 @@ export default function TiendaPublica() {
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
-  // DATOS DE CONFIGURACIÓN INSTITUCIONAL EDITABLES DESDE EL ADMIN
+  // DATOS DE CONFIGURACIÓN INSTITUCIONAL Y LOGO EDITABLES DESDE EL ADMIN
   const [infoAdmin, setInfoAdmin] = useState({
+    logoUrl: '',
     direcciones: ['Ciudad de Guatemala'],
     telefonos: ['(+502) 5555-0101'],
     nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
@@ -128,25 +129,40 @@ export default function TiendaPublica() {
     }
   ]);
 
-  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE (Admin <-> Tienda)
-  const cargarDatosSincronizados = () => {
+  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE Y SUPABASE (Admin <-> Tienda)
+  const cargarDatosSincronizados = async () => {
     if (typeof window !== 'undefined') {
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
       if (guardadosPedidos) {
         try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
       }
 
+      // Cargar configuración de marca, logo y textos
       const configAdmin = localStorage.getItem('config_portada_ag47');
       if (configAdmin) {
         try {
           const parsed = JSON.parse(configAdmin);
           setInfoAdmin({
+            logoUrl: parsed.logoUrl || '',
             direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
             telefonos: parsed.telefonos || ['(+502) 5555-0101'],
             nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
           });
         } catch(e) {}
       }
+
+      // Sincronizar directamente desde Supabase la tabla config_tienda por si acaso
+      try {
+        const { data } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
+        if (data && data.datos) {
+          setInfoAdmin({
+            logoUrl: data.datos.logoUrl || '',
+            direcciones: data.datos.direcciones || ['Ciudad de Guatemala'],
+            telefonos: data.datos.telefonos || ['(+502) 5555-0101'],
+            nosotrosTexto: data.datos.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
+          });
+        }
+      } catch (err) {}
 
       const stockAdmin = localStorage.getItem('ag47_inventario_admin');
       if (stockAdmin) {
@@ -517,9 +533,14 @@ export default function TiendaPublica() {
         <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
+            {/* LOGOTIPO DINÁMICO CONECTADO AL ADMIN Y SUPABASE */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
-              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300">
-                AG
+              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0">
+                {infoAdmin.logoUrl ? (
+                  <img src={infoAdmin.logoUrl} alt="Logo AG47" className="w-full h-full object-cover" />
+                ) : (
+                  <span>AG</span>
+                )}
               </div>
               <div>
                 <span className="font-serif font-bold text-2xl tracking-tight text-zinc-900 block leading-none">AG47</span>

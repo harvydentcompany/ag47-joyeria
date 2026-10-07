@@ -90,14 +90,29 @@ function PosDashboardContent() {
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // 1. INVENTARIO SINCRONIZADO EN TIEMPO REAL
-  const [inventario, setInventario] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardados = localStorage.getItem('ag47_inventario_admin');
+  // 1. CARGADOR INTELIGENTE DE INVENTARIO (BUSCA EN TODAS LAS LLAVES DEL ADMIN)
+  const cargarInventarioAdmin = () => {
+    if (typeof window === 'undefined') return [];
+
+    const llavesInventario = ['ag47_inventario_admin', 'ag47_productos', 'productos_ag47'];
+    for (const llave of llavesInventario) {
+      const guardados = localStorage.getItem(llave);
       if (guardados) {
-        try { return JSON.parse(guardados); } catch(e) {}
+        try {
+          const parsed = JSON.parse(guardados);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Asegurar que cada producto tenga variantes válidas para el POS
+            return parsed.map((p: any) => ({
+              ...p,
+              precioMinorista: Number(p.precioMinorista || p.precio || 0),
+              variantes: p.variantes && p.variantes.length > 0 ? p.variantes : [{ medida: 'Única', peso: p.peso || 5, stock: p.stock || 10 }]
+            }));
+          }
+        } catch(e) {}
       }
     }
+
+    // Inventario por defecto si no hay registros
     return [
       { 
         id: 101, 
@@ -113,17 +128,35 @@ function PosDashboardContent() {
         ]
       }
     ];
-  });
+  };
 
+  const [inventario, setInventario] = useState(cargarInventarioAdmin);
+
+  // Sincronización automática de inventario en tiempo real
   useEffect(() => {
-    localStorage.setItem('ag47_inventario_admin', JSON.stringify(inventario));
-  }, [inventario]);
+    const sincronizarInventario = () => {
+      setInventario(cargarInventarioAdmin());
+    };
+
+    window.addEventListener('storage', sincronizarInventario);
+    const intervalo = setInterval(sincronizarInventario, 2000); // Polling activo cada 2 segundos
+
+    return () => {
+      window.removeEventListener('storage', sincronizarInventario);
+      clearInterval(intervalo);
+    };
+  }, []);
+
+  // Guardar cambios de inventario (cuando se vende algo) en localStorage para que el Admin lo reciba
+  const guardarInventarioActualizado = (nuevoInventario: any[]) => {
+    setInventario(nuevoInventario);
+    localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
+  };
 
   // 2. LISTA DE CLIENTES (CARGA DIRECTA DE SUPABASE + RESPALDO LOCAL)
   const [listaClientes, setListaClientes] = useState<any[]>([clienteMinoristaBase]);
 
   const cargarClientesPOS = async () => {
-    // Intentar cargar directamente desde Supabase igual que el Admin
     const { data, error } = await supabase.from('mayoristas').select('*');
     
     if (!error && data && data.length > 0) {
@@ -142,7 +175,6 @@ function PosDashboardContent() {
       return;
     }
 
-    // Si Supabase falla, intentar leer del localStorage como respaldo
     if (typeof window !== 'undefined') {
       const guardados = localStorage.getItem('ag47_mayoristas_admin');
       if (guardados) {
@@ -322,7 +354,7 @@ function PosDashboardContent() {
       return prod;
     });
 
-    setInventario(nuevoInventario);
+    guardarInventarioActualizado(nuevoInventario);
 
     const ticket = {
       folio: `AG-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -392,16 +424,16 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Clientes Sincronizados desde Supabase</p>
+            <p className="text-xs text-slate-400">Inventario y Stock Sincronizados</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={cargarClientesPOS}
+            onClick={() => { setInventario(cargarInventarioAdmin()); cargarClientesPOS(); }}
             className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
           >
-            🔄 Sincronizar Clientes
+            🔄 Sincronizar Todo
           </button>
           <button 
             onClick={() => router.push('/admin')}

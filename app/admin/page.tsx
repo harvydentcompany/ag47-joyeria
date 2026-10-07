@@ -170,12 +170,36 @@ function AdminDashboard() {
   const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
 
-  // 1. VENDEDORES / TRABAJADORES CON USUARIO Y CONTRASEÑA
-  const [vendedores, setVendedores] = useState([
-    { id: 1, nombre: 'Marta Gómez', telefono: '4444-0101', usuario: 'marta', password: 'marta2026', ventasRealizadas: 14, totalVendido: 12450 },
-    { id: 2, nombre: 'Juan Pérez', telefono: '4444-0202', usuario: 'juan', password: 'juan2026', ventasRealizadas: 8, totalVendido: 7800 },
-  ]);
-  const [nuevoVendedor, setNuevoVendedor] = useState({ nombre: '', telefono: '', usuario: '', password: '' });
+  // 1. VENDEDORES / TRABAJADORES CON MÉTRICAS MENSUALES COMPLETAS
+  const [vendedores, setVendedores] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardados = localStorage.getItem('ag47_vendedores_admin');
+      if (guardados) {
+        try { return JSON.parse(guardados); } catch(e) {}
+      }
+    }
+    return [
+      { id: 1, nombre: 'Marta Gómez', telefono: '4444-0101', usuario: 'marta', password: 'marta2026', ventasRealizadas: 14, totalVendido: 12450, totalGramos: 342.5, totalPiezas: 42, clientesAtendidos: 18, clientesNuevos: 5 },
+      { id: 2, nombre: 'Juan Pérez', telefono: '4444-0202', usuario: 'juan', password: 'juan2026', ventasRealizadas: 8, totalVendido: 7800, totalGramos: 210.0, totalPiezas: 24, clientesAtendidos: 11, clientesNuevos: 3 },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('ag47_vendedores_admin', JSON.stringify(vendedores));
+  }, [vendedores]);
+
+  const [nuevoVendedor, setNuevoVendedor] = useState({ 
+    nombre: '', 
+    telefono: '', 
+    usuario: '', 
+    password: '',
+    ventasRealizadas: 0,
+    totalVendido: 0,
+    totalGramos: 0,
+    totalPiezas: 0,
+    clientesAtendidos: 0,
+    clientesNuevos: 0
+  });
 
   // 2. CLIENTES MAYORISTAS CON TARIFAS, LÍNEA DE CRÉDITO Y CUENTAS POR COBRAR (Sincronizado con Supabase)
   const [mayoristas, setMayoristas] = useState([
@@ -595,10 +619,29 @@ function AdminDashboard() {
     }
     setVendedores([
       ...vendedores,
-      { ...nuevoVendedor, id: Date.now(), ventasRealizadas: 0, totalVendido: 0 }
+      { 
+        ...nuevoVendedor, 
+        id: Date.now(), 
+        ventasRealizadas: Number(nuevoVendedor.ventasRealizadas || 0), 
+        totalVendido: Number(nuevoVendedor.totalVendido || 0),
+        totalGramos: Number(nuevoVendedor.totalGramos || 0),
+        totalPiezas: Number(nuevoVendedor.totalPiezas || 0),
+        clientesAtendidos: Number(nuevoVendedor.clientesAtendidos || 0),
+        clientesNuevos: Number(nuevoVendedor.clientesNuevos || 0)
+      }
     ]);
-    setNuevoVendedor({ nombre: '', telefono: '', usuario: '', password: '' });
+    setNuevoVendedor({ nombre: '', telefono: '', usuario: '', password: '', ventasRealizadas: 0, totalVendido: 0, totalGramos: 0, totalPiezas: 0, clientesAtendidos: 0, clientesNuevos: 0 });
     alert('Trabajador registrado con éxito.');
+  };
+
+  const eliminarVendedor = (id: number) => {
+    if (confirm('¿Estás seguro de eliminar este perfil de trabajador?')) {
+      setVendedores(vendedores.filter(v => v.id !== id));
+    }
+  };
+
+  const actualizarMetricaVendedor = (id: number, campo: string, valor: number) => {
+    setVendedores(vendedores.map(v => v.id === id ? { ...v, [campo]: Math.max(0, valor) } : v));
   };
 
   const actualizarCredencialesVendedor = (id: number, campo: string, valor: string) => {
@@ -1332,20 +1375,123 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* VENDEDORES */}
+        {/* VENDEDORES & MÉTRICAS MENSUALES */}
         {seccion === 'vendedores' && (
           <div className="space-y-8 max-w-5xl">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Gestión de Trabajadores & Accesos</h2>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold font-serif text-amber-400">Control de Trabajadores & Métricas Mensuales</h2>
+                <p className="text-xs text-slate-400">Registra trabajadores y supervisa las ventas cerradas, gramos, piezas, dinero facturado y nuevos clientes del mes.</p>
+              </div>
+              <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg font-bold text-xs">
+                📅 Periodo: Octubre 2026
+              </span>
+            </div>
+
+            {/* FORMULARIO DE REGISTRO */}
             <form onSubmit={agregarVendedor} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400">＋ Registrar Nuevo Vendedor</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="Nombre" value={nuevoVendedor.nombre} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, nombre: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
+              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Nuevo Trabajador / Vendedor</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <input type="text" placeholder="Nombre completo" value={nuevoVendedor.nombre} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, nombre: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Teléfono" value={nuevoVendedor.telefono} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, telefono: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Usuario" value={nuevoVendedor.usuario} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, usuario: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Contraseña" value={nuevoVendedor.password} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, password: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" required />
               </div>
-              <button type="submit" className="bg-amber-500 text-slate-950 font-bold px-4 py-2 rounded text-xs uppercase">Crear Perfil</button>
+              <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded text-xs uppercase shadow transition">Registrar Vendedor</button>
             </form>
+
+            {/* LISTADO Y MÉTRICAS MENSUALES POR VENDEDOR */}
+            <div className="space-y-4">
+              <h3 className="font-bold uppercase text-amber-400 text-xs">📊 Desempeño y Cierres del Mes por Vendedor</h3>
+              
+              {vendedores.map((vend) => (
+                <div key={vend.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-white text-sm">👔 {vend.nombre}</span>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-amber-400 font-mono text-[11px]">Usuario: {vend.usuario}</span>
+                      </div>
+                      <p className="text-slate-400 text-[11px]">Teléfono: {vend.telefono}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => eliminarVendedor(vend.id)}
+                        className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold px-3 py-1.5 rounded transition"
+                      >
+                        🗑️ Eliminar Vendedor
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* TARJETAS DE MÉTRICAS EDITABLES / EN VIVO */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Ventas Cerradas</span>
+                      <input 
+                        type="number" 
+                        value={vend.ventasRealizadas} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'ventasRealizadas', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-white font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Piezas Totales</span>
+                      <input 
+                        type="number" 
+                        value={vend.totalPiezas || (vend.ventasRealizadas * 3)} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'totalPiezas', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-amber-400 font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Gramos Totales</span>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={vend.totalGramos || (vend.ventasRealizadas * 24.5)} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'totalGramos', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-amber-400 font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Total Dinero (Q)</span>
+                      <input 
+                        type="number" 
+                        value={vend.totalVendido} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'totalVendido', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-emerald-400 font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Clientes Atendidos</span>
+                      <input 
+                        type="number" 
+                        value={vend.clientesAtendidos || (vend.ventasRealizadas + 2)} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'clientesAtendidos', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-white font-bold text-sm"
+                      />
+                    </div>
+
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase block font-bold">Clientes Nuevos</span>
+                      <input 
+                        type="number" 
+                        value={vend.clientesNuevos || Math.max(1, Math.floor(vend.ventasRealizadas / 3))} 
+                        onChange={(e) => actualizarMetricaVendedor(vend.id, 'clientesNuevos', Number(e.target.value))}
+                        className="w-full p-1 bg-slate-900 border border-slate-700 rounded text-center text-blue-400 font-bold text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

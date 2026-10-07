@@ -28,15 +28,32 @@ export default function TiendaPublica() {
     nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
   });
 
-  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON EL ADMIN
-  const [todasLasCategorias, setTodasLasCategorias] = useState([
-    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
-    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
-    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
-    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
-    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
-    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
-  ]);
+  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON EL ADMIN Y LOCALSTORAGE
+  const [todasLasCategorias, setTodasLasCategorias] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const guardadasAdmin = localStorage.getItem('ag47_categorias_admin');
+      if (guardadasAdmin) {
+        try {
+          const parsed = JSON.parse(guardadasAdmin);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((nombreCat: string, idx: number) => ({
+              id: idx + 1,
+              nombre: nombreCat,
+              foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500'
+            }));
+          }
+        } catch(e) {}
+      }
+    }
+    return [
+      { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+      { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+      { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+      { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+      { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+      { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
+    ];
+  });
 
   // INVENTARIO DINÁMICO (Sincronizado con el stock y productos del Admin)
   const [productos, setProductos] = useState([
@@ -591,7 +608,6 @@ export default function TiendaPublica() {
 
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
                 {todasLasCategorias.slice(0, 6).map((cat) => {
-                  // Obtiene la foto del primer producto de esta categoría o mantiene la foto por defecto
                   const productoEnCategoria = productos.find(p => p.categoria === cat.nombre && p.fotos && p.fotos.length > 0);
                   const fotoDinamica = productoEnCategoria ? productoEnCategoria.fotos[0] : cat.foto;
 

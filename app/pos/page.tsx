@@ -118,71 +118,58 @@ function PosDashboardContent() {
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(inventario));
   }, [inventario]);
 
-  // 2. FUNCIÓN INTELIGENTE PARA CARGAR CLIENTES DESDE CUALQUIER LLAVE DEL ADMIN
-  const cargarClientesDesdeAdmin = () => {
+  // 2. CARGADOR ROBUSTO DE CLIENTES DESDE EL ADMIN (BUSCA EN TODAS LAS LLAVES POSIBLES)
+  const obtenerClientesAdmin = () => {
     if (typeof window === 'undefined') return [clienteMinoristaBase];
-    
-    let listaEncontrada: any[] = [];
 
-    // Buscar en las posibles llaves que usa tu panel admin
-    const llavesAdmin = ['ag47_clientes', 'ag47_mayoristas_admin', 'ag47_clientes_admin'];
-    for (const llave of llavesAdmin) {
-      const datos = localStorage.getItem(llave);
-      if (datos) {
+    let datosCrudos: any[] = [];
+    const llavesIntentar = ['ag47_mayoristas_admin', 'ag47_clientes', 'clientes_ag47', 'ag47_admin_clientes'];
+
+    for (const llave of llavesIntentar) {
+      const contenido = localStorage.getItem(llave);
+      if (contenido) {
         try {
-          const parsed = JSON.parse(datos);
+          const parsed = JSON.parse(contenido);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            listaEncontrada = parsed;
+            datosCrudos = parsed;
             break;
           }
-        } catch(e) {}
+        } catch (e) {}
       }
     }
 
-    if (listaEncontrada.length === 0) {
-      // Clientes por defecto si aún no hay registros en admin
-      return [
-        clienteMinoristaBase,
-        { id: '101', nombre: 'María López', telefono: '50255550101', tipo: 'b2b', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
-        { id: '102', nombre: 'Marta Gómez', telefono: '50255550202', tipo: 'b2b', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 },
-        { id: '103', nombre: 'Carlos Pérez', telefono: '50255550303', tipo: 'b2b', tarifaGramo: 35, tieneCredito: true, limiteCredito: 3000, saldoDeuda: 500, diasCredito: 15 },
+    // Si no encontró nada en localStorage, provee ejemplos funcionales para prueba
+    if (datosCrudos.length === 0) {
+      datosCrudos = [
+        { id: '101', nombre: 'María López (Admin)', telefono: '50255550101', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
+        { id: '102', nombre: 'Marta Gómez (Admin)', telefono: '50255550202', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 }
       ];
     }
 
-    // Mapear los clientes al formato exacto del POS
-    const mayoristasMapeados = listaEncontrada.map((m: any) => ({
+    const mayoristasMapeados = datosCrudos.map((m: any) => ({
       id: m.id || String(Math.random()),
-      nombre: m.nombre || m.name || 'Cliente sin nombre',
+      nombre: m.nombre || m.name || 'Sin Nombre',
       telefono: m.telefono || m.phone || '50200000000',
-      tipo: m.tipo || (m.tarifaGramo || m.precios_gramo ? 'b2b' : 'b2c'),
-      tarifaGramo: m.tarifaGramo || m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
-      tieneCredito: m.tieneCredito ?? m.tiene_credito ?? false,
-      limiteCredito: m.limiteCredito ?? m.limite_credito ?? 0,
-      saldoDeuda: m.saldoDeuda ?? m.saldo_deuda ?? 0,
-      diasCredito: m.diasCredito ?? m.dias_credito ?? 15
+      tipo: 'b2b',
+      tarifaGramo: Number(m.tarifaGramo || m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36),
+      tieneCredito: Boolean(m.tieneCredito || m.tiene_credito),
+      limiteCredito: Number(m.limiteCredito || m.limite_credito || 0),
+      saldoDeuda: Number(m.saldoDeuda || m.saldo_deuda || 0),
+      diasCredito: Number(m.diasCredito || m.dias_credito || 15)
     }));
 
     return [clienteMinoristaBase, ...mayoristasMapeados];
   };
 
-  const [listaClientes, setListaClientes] = useState(cargarClientesDesdeAdmin);
+  const [listaClientes, setListaClientes] = useState(obtenerClientesAdmin);
 
-  // 3. SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL ENTRE PESTAÑAS (ADMIN <-> POS)
+  // Sincronización automática continua cada vez que cambie localStorage o se recargue
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (!e.key || e.key.includes('ag47_')) {
-        setListaClientes(cargarClientesDesdeAdmin());
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    // Intervalo de respaldo para refrescar automáticamente cada 2 segundos sin recargar
-    const intervalo = setInterval(() => {
-      setListaClientes(cargarClientesDesdeAdmin());
-    }, 2000);
-
+    const actualizar = () => setListaClientes(obtenerClientesAdmin());
+    window.addEventListener('storage', actualizar);
+    const intervalo = setInterval(actualizar, 1500); // Polling activo para asegurar tiempo real
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', actualizar);
       clearInterval(intervalo);
     };
   }, []);
@@ -207,15 +194,6 @@ function PosDashboardContent() {
     c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
     c.telefono.includes(busquedaCliente)
   );
-
-  const obtenerPrecioItem = (prod: any) => {
-    if (clienteSeleccionado.tipo === 'b2b') {
-      const tarifa = clienteSeleccionado.tarifaGramo || 35;
-      const pesoPromedio = prod.variantes?.[0]?.peso || 5;
-      return pesoPromedio * tarifa;
-    }
-    return prod.precioMinorista;
-  };
 
   const agregarAlCarrito = (prod: any, varianteIndex = 0) => {
     const variante = prod.variantes?.[varianteIndex] || { medida: 'Única', peso: 5, stock: prod.stock || 5 };
@@ -422,10 +400,10 @@ function PosDashboardContent() {
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setListaClientes(cargarClientesDesdeAdmin())}
-            className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1.5"
+            onClick={() => setListaClientes(obtenerClientesAdmin())}
+            className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
           >
-            <span>🔄 Sincronizar Clientes</span>
+            🔄 Recargar Clientes
           </button>
           <button 
             onClick={() => router.push('/admin')}
@@ -477,14 +455,14 @@ function PosDashboardContent() {
               className="flex-1 bg-slate-900 border border-slate-800 p-3 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
             />
 
-            {/* BUSCADOR DESPLEGABLE DE CLIENTES VINCULADOS EN TIEMPO REAL */}
+            {/* BUSCADOR DESPLEGABLE DE CLIENTES VINCULADOS */}
             <div className="relative flex-1">
               <div 
                 onClick={() => setMostrarDropdownCliente(!mostrarDropdownCliente)}
                 className="bg-slate-900 border border-amber-500/50 p-2.5 rounded-xl text-xs font-bold text-amber-400 flex justify-between items-center cursor-pointer select-none"
               >
                 <div className="truncate">
-                  <span className="text-[10px] text-slate-400 uppercase block font-mono">Cliente Seleccionado ({listaClientes.length} disp):</span>
+                  <span className="text-[10px] text-slate-400 uppercase block font-mono">Cliente Seleccionado ({listaClientes.length} cargados):</span>
                   <span className="text-white font-bold">{clienteSeleccionado.nombre}</span>
                   {clienteSeleccionado.tipo === 'b2b' && (
                     <span className="text-amber-400 font-mono text-[10px] ml-1.5">(Q{clienteSeleccionado.tarifaGramo}/g)</span>

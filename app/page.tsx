@@ -146,7 +146,6 @@ export default function TiendaPublica() {
         try {
           const parsedCats = JSON.parse(catsAdmin);
           if (Array.isArray(parsedCats) && parsedCats.length > 0) {
-            // Mapear nombres de categorías a objetos con fotos de respaldo
             const catsMapeadas = parsedCats.map((nombreCat: string, idx: number) => ({
               id: idx + 1,
               nombre: nombreCat,
@@ -591,14 +590,20 @@ export default function TiendaPublica() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                {todasLasCategorias.slice(0, 6).map((cat) => (
-                  <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white p-3 rounded-xl border border-[#eadecd] hover:border-amber-500 cursor-pointer text-center transition">
-                    <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-[#f7f2e8]">
-                      <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                {todasLasCategorias.slice(0, 6).map((cat) => {
+                  // Obtiene la foto del primer producto de esta categoría o mantiene la foto por defecto
+                  const productoEnCategoria = productos.find(p => p.categoria === cat.nombre && p.fotos && p.fotos.length > 0);
+                  const fotoDinamica = productoEnCategoria ? productoEnCategoria.fotos[0] : cat.foto;
+
+                  return (
+                    <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white p-3 rounded-xl border border-[#eadecd] hover:border-amber-500 cursor-pointer text-center transition">
+                      <div className="aspect-square rounded-lg overflow-hidden mb-2 bg-[#f7f2e8]">
+                        <img src={fotoDinamica} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                      </div>
+                      <h3 className="font-serif font-bold text-xs uppercase text-zinc-800 group-hover:text-amber-700">{cat.nombre}</h3>
                     </div>
-                    <h3 className="font-serif font-bold text-xs uppercase text-zinc-800 group-hover:text-amber-700">{cat.nombre}</h3>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -742,16 +747,21 @@ export default function TiendaPublica() {
               <h1 className="text-3xl font-serif font-bold text-zinc-900 uppercase tracking-wider">TODAS NUESTRAS CATEGORÍAS</h1>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {todasLasCategorias.map((cat) => (
-                <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white rounded-2xl border border-[#eadecd] overflow-hidden cursor-pointer hover:border-amber-500 transition shadow-xs">
-                  <div className="aspect-4/3 overflow-hidden bg-[#f7f2e8]">
-                    <img src={cat.foto} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+              {todasLasCategorias.map((cat) => {
+                const productoEnCategoria = productos.find(p => p.categoria === cat.nombre && p.fotos && p.fotos.length > 0);
+                const fotoDinamica = productoEnCategoria ? productoEnCategoria.fotos[0] : cat.foto;
+
+                return (
+                  <div key={cat.id} onClick={() => irACategoriaEspecifica(cat.nombre)} className="group bg-white rounded-2xl border border-[#eadecd] overflow-hidden cursor-pointer hover:border-amber-500 transition shadow-xs">
+                    <div className="aspect-4/3 overflow-hidden bg-[#f7f2e8]">
+                      <img src={fotoDinamica} alt={cat.nombre} className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
+                    </div>
+                    <div className="p-5 text-center">
+                      <h3 className="font-serif font-bold text-base text-zinc-900 uppercase tracking-wider group-hover:text-amber-800">{cat.nombre}</h3>
+                    </div>
                   </div>
-                  <div className="p-5 text-center">
-                    <h3 className="font-serif font-bold text-base text-zinc-900 uppercase tracking-wider group-hover:text-amber-800">{cat.nombre}</h3>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}

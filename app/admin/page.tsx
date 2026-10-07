@@ -112,7 +112,7 @@ function AdminDashboard() {
     }
   };
 
-  const guardarEdicionCategoria = (indexOriginal: number) => {
+  const guardarEdicionCategoria = async (indexOriginal: number) => {
     const nombreNuevo = nombreCatEditada.trim();
     if (!nombreNuevo) return;
     const catAntigua = categoriasBase[indexOriginal];
@@ -125,6 +125,22 @@ function AdminDashboard() {
     const productosActualizados = productos.map((p: any) => p.categoria === catAntigua ? { ...p, categoria: nombreNuevo } : p);
     setProductos(productosActualizados);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(productosActualizados));
+
+    // Sincronizar cambios de categoría en Supabase
+    for (const p of productosActualizados) {
+      if (p.categoria === nombreNuevo) {
+        await supabase.from('productos').upsert([{
+          id: p.id,
+          sku: p.sku,
+          barcode: p.barcode,
+          nombre: p.nombre,
+          categoria: p.categoria,
+          precio_minorista: p.precioMinorista,
+          fotos: p.fotos,
+          variantes: p.variantes
+        }]);
+      }
+    }
 
     setEditandoCategoriaIndex(null);
     setNombreCatEditada('');
@@ -340,60 +356,39 @@ function AdminDashboard() {
 
   const [montoAbonoInput, setMontoAbonoInput] = useState<Record<number, number>>({});
 
-  // 3. PRODUCTOS E INVENTARIO CON CÓDIGO DE BARRAS, TALLAS Y MEDIDAS
+  // 3. PRODUCTOS E INVENTARIO CON CÓDIGO DE BARRAS, TALLAS Y MEDIDAS (SINCRONIZADO DIRECTAMENTE CON SUPABASE)
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
   const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos'); // 'Todos', 'Disponible', 'Baja cantidad', 'Agotado'
   const [editandoProductoId, setEditandoProductoId] = useState<number | null>(null);
 
-  const [productos, setProductos] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardados = localStorage.getItem('ag47_inventario_admin');
-      if (guardados) {
-        try { return JSON.parse(guardados); } catch(e) {}
+  const [productos, setProductos] = useState<any[]>([]);
+
+  // CARGAR PRODUCTOS DESDE SUPABASE AL ABRIR EL ADMIN
+  useEffect(() => {
+    const cargarProductosSupabase = async () => {
+      const { data, error } = await supabase.from('productos').select('*');
+      if (!error && data && data.length > 0) {
+        const mapeados = data.map((p: any) => ({
+          id: p.id,
+          sku: p.sku,
+          barcode: p.barcode,
+          nombre: p.nombre,
+          categoria: p.categoria,
+          precioMinorista: Number(p.precio_minorista || 0),
+          fotos: p.fotos || [],
+          variantes: p.variantes || []
+        }));
+        setProductos(mapeados);
+        localStorage.setItem('ag47_inventario_admin', JSON.stringify(mapeados));
+      } else {
+        const guardados = localStorage.getItem('ag47_inventario_admin');
+        if (guardados) {
+          try { setProductos(JSON.parse(guardados)); } catch(e) {}
+        }
       }
-    }
-    return [
-      { 
-        id: 101, 
-        sku: 'ANI-012', 
-        barcode: '740100200301',
-        nombre: 'Anillo Zirconia Garra', 
-        categoria: 'Anillos', 
-        precioMinorista: 220, 
-        fotos: ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'],
-        variantes: [
-          { id: 'v1', medida: 'Talla 6', peso: 3.2, stock: 5 },
-          { id: 'v2', medida: 'Talla 7', peso: 3.5, stock: 8 },
-          { id: 'v3', medida: 'Talla 8', peso: 3.8, stock: 2 },
-        ]
-      },
-      { 
-        id: 102, 
-        sku: 'CAD-005', 
-        barcode: '740100200302',
-        nombre: 'Cadena Escalera Plata 925', 
-        categoria: 'Cadenas', 
-        precioMinorista: 600, 
-        fotos: ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'],
-        variantes: [
-          { id: 'v4', medida: '45 cm', peso: 10.5, stock: 4 },
-          { id: 'v5', medida: '50 cm', peso: 12.0, stock: 6 },
-        ]
-      },
-      { 
-        id: 103, 
-        sku: 'PUL-088', 
-        barcode: '740100200303',
-        nombre: 'Pulsera Tejido Italiano', 
-        categoria: 'Pulseras', 
-        precioMinorista: 450, 
-        fotos: ['https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'],
-        variantes: [
-          { id: 'v6', medida: '18 cm', peso: 8.5, stock: 6 }
-        ]
-      }
-    ];
-  });
+    };
+    cargarProductosSupabase();
+  }, []);
 
   const [nuevoProd, setNuevoProd] = useState({
     sku: '', 
@@ -483,7 +478,6 @@ function AdminDashboard() {
     };
   });
 
-  // EFECTO DE GUARDADO AUTOMÁTICO PARA QUE NO SE PIERDAN LOS AJUSTES Y SE SINCRONICE CON LA WEB
   useEffect(() => {
     localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
   }, [portada]);
@@ -493,7 +487,7 @@ function AdminDashboard() {
     alert('¡Configuración de marca, textos y estilos guardada con éxito y sincronizada con la web!');
   };
 
-  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS (SINCRONIZADOS CON LOCALSTORAGE)
+  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS
   const [filtroEstadoPedido, setFiltroEstadoPedido] = useState('Todos');
   const [pedidos, setPedidos] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -533,7 +527,7 @@ function AdminDashboard() {
 
   const [pedidoDetalleModal, setPedidoDetalleModal] = useState<any>(null);
 
-  // 6. CÓDIGOS DE DESCUENTO CON SELECCIÓN DE PRODUCTO POR CÓDIGO DE BARRAS E IMAGEN
+  // 6. CÓDIGOS DE DESCUENTO
   const [cupones, setCupones] = useState([
     { 
       id: 1, 
@@ -591,7 +585,7 @@ function AdminDashboard() {
     pedidosTiendaPos: 32
   });
 
-  // EXPORTAR CATÁLOGO A FORMATO CSV (INCLUYENDO ENLACES SELECCIONADOS DEL DRIVE)
+  // EXPORTAR CATÁLOGO A FORMATO CSV
   const exportarCatalogoCSV = () => {
     let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,PrecioMinorista,ImagenURL_1,ImagenURL_2\n";
     
@@ -611,7 +605,6 @@ function AdminDashboard() {
     document.body.removeChild(link);
   };
 
-  // FUNCIONES DE TRABAJADORES / VENDEDORES
   const agregarVendedor = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoVendedor.nombre || !nuevoVendedor.usuario || !nuevoVendedor.password) {
@@ -644,40 +637,9 @@ function AdminDashboard() {
     setVendedores(vendedores.map(v => v.id === id ? { ...v, [campo]: Math.max(0, valor) } : v));
   };
 
-  const actualizarCredencialesVendedor = (id: number, campo: string, valor: string) => {
-    setVendedores(vendedores.map(v => v.id === id ? { ...v, [campo]: valor } : v));
-  };
-
-  const guardarCredencialesAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formAdminCred.usuario || !formAdminCred.password) {
-      return alert('El usuario y la contraseña de administrador no pueden estar vacíos.');
-    }
-    setAdminCredenciales(formAdminCred);
-    alert('Credenciales de Administrador actualizadas correctamente.');
-  };
-
-  const toggleSeleccionProductoCupon = (prodId: number) => {
-    if (nuevoCupon.productosIds.includes(prodId)) {
-      setNuevoCupon({
-        ...nuevoCupon,
-        productosIds: nuevoCupon.productosIds.filter(id => id !== prodId)
-      });
-    } else {
-      setNuevoCupon({
-        ...nuevoCupon,
-        productosIds: [...nuevoCupon.productosIds, prodId]
-      });
-    }
-  };
-
   const crearCupon = (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoCupon.codigo) return;
-    if (nuevoCupon.aplicaA === 'especificos' && nuevoCupon.productosIds.length === 0) {
-      return alert('Por favor selecciona al menos un producto.');
-    }
-
     setCupones([
       ...cupones,
       {
@@ -691,28 +653,12 @@ function AdminDashboard() {
       }
     ]);
     setNuevoCupon({ codigo: '', tipo: 'porcentaje', valor: 0, usoLimite: 10, aplicaA: 'todos', productosIds: [] });
-    setBusquedaProductoCupon('');
     alert('Código de descuento activado correctamente.');
   };
 
   const cambiarEstadoCupon = (id: number) => {
     setCupones(cupones.map(c => c.id === id ? { ...c, activo: !c.activo } : c));
   };
-
-  const enviarPromocionMensaje = (e: React.FormEvent) => {
-    e.preventDefault();
-    let canales = [];
-    if (mensajePromo.canalWhatsapp) canales.push('WhatsApp');
-    if (mensajePromo.canalEmail) canales.push('Correo Electrónico');
-
-    alert(`Promoción y código "${mensajePromo.codigoAdjunto}" enviados vía ${canales.join(' y ')}.`);
-  };
-
-  const productosFiltradosParaCupon = productos.filter(p => 
-    p.nombre.toLowerCase().includes(busquedaProductoCupon.toLowerCase()) ||
-    p.sku.toLowerCase().includes(busquedaProductoCupon.toLowerCase()) ||
-    (p.barcode && p.barcode.includes(busquedaProductoCupon))
-  );
 
   const agregarCliente = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -804,7 +750,6 @@ function AdminDashboard() {
     setMayoristas(mayoristas.map(m => m.id === clienteId ? { ...m, [campo]: valor } : m));
   };
 
-  // FUNCIÓN PARA ENVIAR ACCESOS VÍA WHATSAPP AL CLIENTE
   const enviarAccesosWhatsapp = (cliente: any) => {
     let mensaje = `¡Hola *${cliente.nombre}*! Tu cuenta mayorista en *AG47* ha sido habilitada.\n\n`;
     mensaje += `Tus datos de acceso al Portal B2B son:\n`;
@@ -829,45 +774,77 @@ function AdminDashboard() {
     setNuevoProd({ ...nuevoProd, variantes: nuevasVar });
   };
 
-  // GUARDAR O ACTUALIZAR PRODUCTO
-  const guardarOActualizarProducto = (e: React.FormEvent) => {
+  // GUARDAR O ACTUALIZAR PRODUCTO DIRECTAMENTE EN SUPABASE
+  const guardarOActualizarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nuevoProd.fotos.length === 0) {
       return alert('Por favor selecciona o sube al menos una imagen.');
     }
 
+    const productoIdFinal = editandoProductoId !== null ? editandoProductoId : Date.now();
+    const productoObj = { 
+      id: productoIdFinal,
+      sku: nuevoProd.sku,
+      barcode: nuevoProd.barcode || '',
+      nombre: nuevoProd.nombre,
+      categoria: nuevoProd.categoria,
+      precio_minorista: Number(nuevoProd.precioMinorista),
+      fotos: nuevoProd.fotos,
+      variantes: nuevoProd.variantes
+    };
+
+    // Guardar en Supabase
+    const { error } = await supabase.from('productos').upsert([productoObj]);
+
+    if (error) {
+      alert('Error al guardar en Supabase: ' + error.message);
+      return;
+    }
+
+    // Actualizar estado local
+    const productoLocalMapeado = {
+      id: productoObj.id,
+      sku: productoObj.sku,
+      barcode: productoObj.barcode,
+      nombre: productoObj.nombre,
+      categoria: productoObj.categoria,
+      precioMinorista: productoObj.precio_minorista,
+      fotos: productoObj.fotos,
+      variantes: productoObj.variantes
+    };
+
     if (editandoProductoId !== null) {
-      const actualizados = productos.map((p: any) => p.id === editandoProductoId ? { ...nuevoProd, id: editandoProductoId, precioMinorista: Number(nuevoProd.precioMinorista) } : p);
+      const actualizados = productos.map((p: any) => p.id === editandoProductoId ? productoLocalMapeado : p);
       setProductos(actualizados);
       localStorage.setItem('ag47_inventario_admin', JSON.stringify(actualizados));
       setEditandoProductoId(null);
-      alert('¡Joya actualizada con éxito!');
+      alert('¡Joya actualizada y sincronizada en Supabase!');
     } else {
-      const productoCreado = { 
-        ...nuevoProd, 
-        id: Date.now(), 
-        precioMinorista: Number(nuevoProd.precioMinorista) 
-      };
-
-      const nuevosProductos = [...productos, productoCreado];
+      const nuevosProductos = [...productos, productoLocalMapeado];
       setProductos(nuevosProductos);
       localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevosProductos));
-      alert('Joya guardada y sincronizada correctamente con la tienda.');
+      alert('¡Joya guardada y sincronizada exitosamente en Supabase!');
     }
     
     setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0] || 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
   };
 
-  // ELIMINAR PRODUCTO
-  const eliminarProducto = (id: number) => {
+  // ELIMINAR PRODUCTO DE SUPABASE Y LOCAL
+  const eliminarProducto = async (id: number) => {
     if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
+      const { error } = await supabase.from('productos').delete().eq('id', id);
+      if (error) {
+        alert('Error al eliminar en Supabase: ' + error.message);
+        return;
+      }
+
       const filtrados = productos.filter((p: any) => p.id !== id);
       setProductos(filtrados);
       localStorage.setItem('ag47_inventario_admin', JSON.stringify(filtrados));
+      alert('Producto eliminado correctamente.');
     }
   };
 
-  // CARGAR PRODUCTO PARA EDITAR
   const cargarProductoParaEditar = (p: any) => {
     setEditandoProductoId(p.id);
     setNuevoProd({
@@ -882,7 +859,6 @@ function AdminDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // OBTENER ESTADO DE STOCK PARA FILTRAR
   const obtenerEstadoStockProducto = (p: any) => {
     const totalStock = p.variantes.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0);
     if (totalStock === 0) return { texto: 'Agotado', clase: 'bg-rose-600/20 text-rose-400 border-rose-600/40' };
@@ -898,18 +874,18 @@ function AdminDashboard() {
   });
 
   const cambiarEstadoPedidoDirecto = (pedidoId: number, nuevoEstado: string) => {
-    setPedidos(pedidos.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
+    setPedidos(pedidos.map((p: any) => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
   };
 
   const guardarRevisionPedido = () => {
-    setPedidos(pedidos.map(p => p.id === pedidoDetalleModal.id ? pedidoDetalleModal : p));
+    setPedidos(pedidos.map((p: any) => p.id === pedidoDetalleModal.id ? pedidoDetalleModal : p));
     setPedidoDetalleModal(null);
     alert('Pedido guardado con su nuevo estado.');
   };
 
   const pedidosFiltrados = filtroEstadoPedido === 'Todos'
     ? pedidos
-    : pedidos.filter(p => p.estado === filtroEstadoPedido);
+    : pedidos.filter((p: any) => p.estado === filtroEstadoPedido);
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
@@ -1001,7 +977,7 @@ function AdminDashboard() {
             </div>
 
             <div className="space-y-4">
-              {pedidosFiltrados.map((ped) => (
+              {pedidosFiltrados.map((ped: any) => (
                 <div key={ped.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-800 pb-3">
                     <div>
@@ -1175,7 +1151,7 @@ function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-300">
-                  {cupones.map((c) => (
+                  {cupones.map((c: any) => (
                     <tr key={c.id}>
                       <td className="p-3 font-mono font-bold text-amber-400">{c.codigo}</td>
                       <td className="p-3 font-bold text-white">{c.tipo === 'porcentaje' ? `${c.valor}% OFF` : `Q${c.valor}.00 OFF`}</td>
@@ -1214,7 +1190,7 @@ function AdminDashboard() {
             </form>
 
             <div className="space-y-4">
-              {mayoristas.map((m) => {
+              {mayoristas.map((m: any) => {
                 const estaDesplegado = clienteDesplegadoId === m.id;
                 return (
                   <div key={m.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden text-xs">
@@ -1265,7 +1241,7 @@ function AdminDashboard() {
                                 value={m.usuario || ''} 
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  setMayoristas(mayoristas.map(item => item.id === m.id ? { ...item, usuario: val } : item));
+                                  setMayoristas(mayoristas.map((item: any) => item.id === m.id ? { ...item, usuario: val } : item));
                                 }}
                                 className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono"
                               />
@@ -1277,7 +1253,7 @@ function AdminDashboard() {
                                 value={m.password || ''} 
                                 onChange={(e) => {
                                   const val = e.target.value;
-                                  setMayoristas(mayoristas.map(item => item.id === m.id ? { ...item, password: val } : item));
+                                  setMayoristas(mayoristas.map((item: any) => item.id === m.id ? { ...item, password: val } : item));
                                 }}
                                 className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono"
                               />
@@ -1375,7 +1351,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* VENDEDORES & MÉTRICAS MENSUALES */}
+        {/* VENDEDORES */}
         {seccion === 'vendedores' && (
           <div className="space-y-8 max-w-5xl">
             <div className="flex justify-between items-center">
@@ -1388,7 +1364,6 @@ function AdminDashboard() {
               </span>
             </div>
 
-            {/* FORMULARIO DE REGISTRO */}
             <form onSubmit={agregarVendedor} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
               <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Nuevo Trabajador / Vendedor</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -1400,11 +1375,10 @@ function AdminDashboard() {
               <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded text-xs uppercase shadow transition">Registrar Vendedor</button>
             </form>
 
-            {/* LISTADO Y MÉTRICAS MENSUALES POR VENDEDOR */}
             <div className="space-y-4">
               <h3 className="font-bold uppercase text-amber-400 text-xs">📊 Desempeño y Cierres del Mes por Vendedor</h3>
               
-              {vendedores.map((vend) => (
+              {vendedores.map((vend: any) => (
                 <div key={vend.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3">
                     <div>
@@ -1426,7 +1400,6 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* TARJETAS DE MÉTRICAS EDITABLES / EN VIVO */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                     <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-center space-y-1">
                       <span className="text-[10px] text-slate-400 uppercase block font-bold">Ventas Cerradas</span>
@@ -1495,16 +1468,15 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* SECCIÓN 5: PRODUCTOS, TALLAS, CATEGORÍAS Y CONTROL DE STOCK */}
+        {/* PRODUCTOS & SUPABASE */}
         {seccion === 'productos' && (
           <div className="space-y-6 max-w-5xl">
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div>
-                <h2 className="text-xl font-bold font-serif text-amber-400">Inventario, Tallas y Control de Stock</h2>
-                <p className="text-xs text-slate-400">Gestiona categorías, edita, elimina y filtra productos por nivel de stock.</p>
+                <h2 className="text-xl font-bold font-serif text-amber-400">Inventario Sincronizado en Supabase</h2>
+                <p className="text-xs text-slate-400">Las piezas creadas aquí se guardan de forma permanente en la nube para el Admin y el POS.</p>
               </div>
 
-              {/* FILTROS POR ESTADO DE STOCK */}
               <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
                 {['Todos', 'Disponible', 'Baja cantidad', 'Agotado'].map((st) => (
                   <button
@@ -1520,7 +1492,7 @@ function AdminDashboard() {
               </div>
             </div>
 
-            {/* GESTIÓN DE CATEGORÍAS (Crear, Editar y Eliminar) */}
+            {/* GESTIÓN DE CATEGORÍAS */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
               <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📂 Administración de Categorías del Catálogo</h3>
               
@@ -1564,11 +1536,10 @@ function AdminDashboard() {
               </div>
             </div>
 
-            {/* FORMULARIO DE REGISTRO / EDICIÓN DE PRODUCTO */}
             <form onSubmit={guardarOActualizarProducto} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <h3 className="font-bold uppercase text-amber-400">
-                  {editandoProductoId !== null ? '✏️ Editando Joya ID: ' + editandoProductoId : '＋ Registrar Joya con Medidas'}
+                  {editandoProductoId !== null ? '✏️ Editando Joya ID: ' + editandoProductoId : '＋ Registrar Joya en Supabase'}
                 </h3>
                 {editandoProductoId !== null && (
                   <button 
@@ -1585,7 +1556,7 @@ function AdminDashboard() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="SKU (ej: ANI-012)" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
+                <input type="text" placeholder="SKU" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Código de Barras" value={nuevoProd.barcode} onChange={(e) => setNuevoProd({ ...nuevoProd, barcode: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
                 <input type="text" placeholder="Nombre" value={nuevoProd.nombre} onChange={(e) => setNuevoProd({ ...nuevoProd, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <select value={nuevoProd.categoria} onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
@@ -1594,10 +1565,8 @@ function AdminDashboard() {
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
 
-              {/* SECCIÓN MULTIMEDIA HÍBRIDA (SUPABASE STORAGE + GALERÍA DRIVE) */}
               <div className="space-y-3 pt-2 border-t border-slate-800">
-                <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia (Doble Opción) *</label>
-                
+                <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div 
                     onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
@@ -1608,18 +1577,14 @@ function AdminDashboard() {
                   </div>
 
                   <label className="py-4 px-3 border-2 border-dashed border-emerald-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition">
-                    <span className="font-bold text-emerald-300 text-xs">
-                      {subiendoArchivoSupabase ? 'Subiendo a Supabase...' : '☁️ Subir Foto a Supabase Storage'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">Guarda directo en tu bucket "joyas"</span>
+                    <span className="font-bold text-emerald-300 text-xs">{subiendoArchivoSupabase ? 'Subiendo...' : '☁️ Subir Foto a Supabase Storage'}</span>
                     <input type="file" accept="image/*" onChange={manejarSubidaArchivoSupabaseStorage} className="hidden" disabled={subiendoArchivoSupabase} />
                   </label>
                 </div>
-
                 {nuevoProd.fotos.length > 0 && (
                   <div className="flex gap-2 pt-2 overflow-x-auto">
                     {nuevoProd.fotos.map((imgUrl, idx) => (
-                      <img key={idx} src={imgUrl} alt="" className="w-14 h-14 object-cover rounded-lg border-2 border-amber-500 shadow-sm" />
+                      <img key={idx} src={imgUrl} alt="" className="w-14 h-14 object-cover rounded-lg border-2 border-amber-500" />
                     ))}
                   </div>
                 )}
@@ -1627,20 +1592,20 @@ function AdminDashboard() {
 
               <div className="space-y-2 border-t border-slate-800 pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-amber-400 uppercase text-[11px]">Tallas / Medidas Individuales:</span>
-                  <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar Medida</button>
+                  <span className="font-bold text-amber-400 uppercase text-[11px]">Medidas y Stock:</span>
+                  <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar</button>
                 </div>
                 {nuevoProd.variantes.map((v, idx) => (
                   <div key={idx} className="grid grid-cols-3 gap-2 bg-slate-950 p-2 rounded border border-slate-800">
-                    <input type="text" placeholder="Medida (ej. Talla 7)" value={v.medida} onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
-                    <input type="number" step="0.1" placeholder="Peso (g)" value={v.peso || ''} onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
-                    <input type="number" placeholder="Stock" value={v.stock || ''} onChange={(e) => actualizarVarianteForm(idx, 'stock', Number(e.target.value))} className="p-1.5 bg-slate-900 border border-slate-800 rounded text-white" required />
+                    <input type="text" placeholder="Medida" value={v.medida} onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} className="p-1.5 bg-slate-900 rounded text-white" required />
+                    <input type="number" step="0.1" placeholder="Peso (g)" value={v.peso || ''} onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} className="p-1.5 bg-slate-900 rounded text-white" required />
+                    <input type="number" placeholder="Stock" value={v.stock || ''} onChange={(e) => actualizarVarianteForm(idx, 'stock', Number(e.target.value))} className="p-1.5 bg-slate-900 rounded text-white" required />
                   </div>
                 ))}
               </div>
 
               <button type="submit" className="w-full bg-amber-500 text-slate-950 font-bold py-2.5 rounded text-xs uppercase shadow">
-                {editandoProductoId !== null ? '💾 Guardar Cambios de la Joya' : '💎 Registrar Joya'}
+                {editandoProductoId !== null ? '💾 Guardar Cambios' : '💎 Registrar Joya en Supabase'}
               </button>
             </form>
 
@@ -1658,25 +1623,13 @@ function AdminDashboard() {
                             {estadoStock.texto}
                           </span>
                         </div>
-                        <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span> | Cat: <span className="text-amber-400">{p.categoria}</span></p>
-                        <p className="font-bold text-emerald-400">Precio Público: Q{p.precioMinorista}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">Variantes: {p.variantes.map((v: any) => `${v.medida} (${v.stock} un.)`).join(', ')}</p>
+                        <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
+                        <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista}</p>
                       </div>
                     </div>
-
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                      <button 
-                        onClick={() => cargarProductoParaEditar(p)}
-                        className="bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold px-3 py-1 rounded transition"
-                      >
-                        ✏️ Editar
-                      </button>
-                      <button 
-                        onClick={() => eliminarProducto(p.id)}
-                        className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold px-3 py-1 rounded transition"
-                      >
-                        🗑️ Eliminar
-                      </button>
+                      <button onClick={() => cargarProductoParaEditar(p)} className="bg-amber-500/20 text-amber-300 font-bold px-3 py-1 rounded">✏️ Editar</button>
+                      <button onClick={() => eliminarProducto(p.id)} className="bg-rose-600/20 text-rose-300 font-bold px-3 py-1 rounded">🗑️ Eliminar</button>
                     </div>
                   </div>
                 );
@@ -1693,7 +1646,6 @@ function AdminDashboard() {
             
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
               
-              {/* TÍTULOS Y TEXTOS */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📝 Textos Principales de Portada</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1708,7 +1660,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* SECCIÓN NOSOTROS */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🏢 Edición Sección "Nosotros"</h3>
                 <div>
@@ -1722,7 +1673,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* LOGO Y BANNER */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 URLs de Logo e Imagen de Banner</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1737,7 +1687,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* ESTILOS Y TIPOGRAFÍA */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🎨 Estilo de Letra y Paleta de Colores</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1764,7 +1713,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* MÚLTIPLES TELÉFONOS */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h3 className="font-bold uppercase text-amber-400">📞 Números de Teléfono (Múltiples)</h3>
@@ -1799,7 +1747,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* MÚLTIPLES DIRECCIONES */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                   <h3 className="font-bold uppercase text-amber-400">📍 Direcciones Físicas / Sucursales</h3>
@@ -1834,7 +1781,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* REDES SOCIALES */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🌐 Enlaces de Redes Sociales</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1891,18 +1837,17 @@ function AdminDashboard() {
               <span className="font-mono font-bold text-amber-400">{imagenesSeleccionadasTemp.length} seleccionadas</span>
             </div>
 
-            {/* CUADRÍCULA DE ARCHIVOS CON CHECKBOXES */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto p-2 flex-1">
               {galeriaDrive
-                .filter(img => img.nombre.toLowerCase().includes(filtroGaleriaDrive.toLowerCase()))
-                .map((img) => {
+                .filter((img: any) => img.nombre.toLowerCase().includes(filtroGaleriaDrive.toLowerCase()))
+                .map((img: any) => {
                   const estaMarcada = imagenesSeleccionadasTemp.includes(img.url);
                   return (
                     <div 
                       key={img.id}
                       onClick={() => {
                         if (estaMarcada) {
-                          setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter(u => u !== img.url));
+                          setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter((u: string) => u !== img.url));
                         } else {
                           setImagenesSeleccionadasTemp([...imagenesSeleccionadasTemp, img.url]);
                         }
@@ -1913,7 +1858,6 @@ function AdminDashboard() {
                     >
                       <img src={img.url} alt={img.nombre} className="absolute inset-0 w-full h-full object-cover" />
                       
-                      {/* CHECKBOX VISUAL SUPERIOR */}
                       <div className="absolute top-3 right-3 w-6 h-6 rounded bg-slate-900/90 border border-slate-600 flex items-center justify-center shadow">
                         {estaMarcada && <span className="text-amber-400 font-bold text-xs">✓</span>}
                       </div>

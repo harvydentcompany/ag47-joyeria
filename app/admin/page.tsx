@@ -72,43 +72,71 @@ export default function AdminPage() {
 function AdminDashboard() {
   const [seccion, setSeccion] = useState('pedidos');
 
-  // CATEGORÍAS DINÁMICAS (Guardadas en LocalStorage para poder crearlas, editarlas y eliminarlas)
-  const [categoriasBase, setCategoriasBase] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardadas = localStorage.getItem('ag47_categorias_admin');
-      if (guardadas) {
-        try { return JSON.parse(guardadas); } catch(e) {}
-      }
-    }
-    return ['Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'];
-  });
+  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON SUPABASE
+  const [categoriasBase, setCategoriasBase] = useState<string[]>([
+    'Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'
+  ]);
 
   const [nuevaCatInput, setNuevaCatInput] = useState('');
   const [editandoCategoriaIndex, setEditandoCategoriaIndex] = useState<number | null>(null);
   const [nombreCatEditada, setNombreCatEditada] = useState('');
 
+  // CARGAR CATEGORÍAS DESDE SUPABASE AL INICIAR
   useEffect(() => {
-    localStorage.setItem('ag47_categorias_admin', JSON.stringify(categoriasBase));
-  }, [categoriasBase]);
+    const cargarCategoriasSupabase = async () => {
+      const { data, error } = await supabase.from('categorias').select('*');
+      if (!error && data && data.length > 0) {
+        const listaSupabase = data.map((item: any) => item.nombre);
+        setCategoriasBase(listaSupabase);
+        localStorage.setItem('ag47_categorias_admin', JSON.stringify(listaSupabase));
+      } else {
+        const guardadas = localStorage.getItem('ag47_categorias_admin');
+        if (guardadas) {
+          try { setCategoriasBase(JSON.parse(guardadas)); } catch(e) {}
+        }
+      }
+    };
+    cargarCategoriasSupabase();
+  }, []);
 
-  const agregarCategoria = (e: React.FormEvent) => {
+  const agregarCategoria = async (e: React.FormEvent) => {
     e.preventDefault();
     const catLimpia = nuevaCatInput.trim();
     if (!catLimpia) return;
     if (categoriasBase.includes(catLimpia)) {
       return alert('Esa categoría ya existe.');
     }
-    setCategoriasBase([...categoriasBase, catLimpia]);
+
+    // Insertar en Supabase
+    const { error } = await supabase.from('categorias').insert([{ nombre: catLimpia }]);
+    if (error) {
+      alert('Error al guardar categoría en Supabase: ' + error.message);
+      return;
+    }
+
+    const actualizadas = [...categoriasBase, catLimpia];
+    setCategoriasBase(actualizadas);
+    localStorage.setItem('ag47_categorias_admin', JSON.stringify(actualizadas));
     setNuevaCatInput('');
-    alert('¡Categoría creada con éxito!');
+    alert('¡Categoría creada y guardada en Supabase con éxito!');
   };
 
-  const eliminarCategoria = (catAEliminar: string) => {
+  const eliminarCategoria = async (catAEliminar: string) => {
     if (categoriasBase.length <= 1) {
       return alert('Debes mantener al menos una categoría.');
     }
     if (confirm(`¿Estás seguro de eliminar la categoría "${catAEliminar}"?`)) {
-      setCategoriasBase(categoriasBase.filter((c: string) => c !== catAEliminar));
+      // Eliminar de Supabase
+      const { error } = await supabase.from('categorias').delete().eq('nombre', catAEliminar);
+      if (error) {
+        alert('Error al eliminar en Supabase: ' + error.message);
+        return;
+      }
+
+      const actualizadas = categoriasBase.filter((c: string) => c !== catAEliminar);
+      setCategoriasBase(actualizadas);
+      localStorage.setItem('ag47_categorias_admin', JSON.stringify(actualizadas));
+      alert('Categoría eliminada correctamente.');
     }
   };
 
@@ -117,16 +145,25 @@ function AdminDashboard() {
     if (!nombreNuevo) return;
     const catAntigua = categoriasBase[indexOriginal];
 
+    // Actualizar en Supabase (borrar antigua e insertar nueva o actualizar registro)
+    await supabase.from('categorias').delete().eq('nombre', catAntigua);
+    const { error } = await supabase.from('categorias').insert([{ nombre: nombreNuevo }]);
+
+    if (error) {
+      alert('Error al actualizar categoría en Supabase: ' + error.message);
+      return;
+    }
+
     const actualizadas = [...categoriasBase];
     actualizadas[indexOriginal] = nombreNuevo;
     setCategoriasBase(actualizadas);
+    localStorage.setItem('ag47_categorias_admin', JSON.stringify(actualizadas));
 
     // Actualizar también la categoría en los productos existentes para que no queden huérfanos
     const productosActualizados = productos.map((p: any) => p.categoria === catAntigua ? { ...p, categoria: nombreNuevo } : p);
     setProductos(productosActualizados);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(productosActualizados));
 
-    // Sincronizar cambios de categoría en Supabase
     for (const p of productosActualizados) {
       if (p.categoria === nombreNuevo) {
         await supabase.from('productos').upsert([{
@@ -144,7 +181,7 @@ function AdminDashboard() {
 
     setEditandoCategoriaIndex(null);
     setNombreCatEditada('');
-    alert('¡Categoría actualizada correctamente!');
+    alert('¡Categoría actualizada correctamente en Supabase!');
   };
 
   // ID del cliente desplegado en la sección B2B
@@ -1494,7 +1531,7 @@ function AdminDashboard() {
 
             {/* GESTIÓN DE CATEGORÍAS */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📂 Administración de Categorías del Catálogo</h3>
+              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📂 Administración de Categorías del Catálogo (Sincronizado Supabase)</h3>
               
               <form onSubmit={agregarCategoria} className="flex gap-2">
                 <input 

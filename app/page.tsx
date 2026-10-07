@@ -21,7 +21,7 @@ export default function TiendaPublica() {
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
-  // DATOS DE CONFIGURACIÓN INSTITUCIONAL, LOGO Y BANNER EDITABLES DESDE EL ADMIN
+  // DATOS DE CONFIGURACIÓN INSTITUCIONAL, LOGO Y BANNER DESDE SUPABASE
   const [infoAdmin, setInfoAdmin] = useState({
     logoUrl: '',
     bannerUrl: '',
@@ -32,179 +32,92 @@ export default function TiendaPublica() {
     nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
   });
 
-  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON EL ADMIN Y LOCALSTORAGE
-  const [todasLasCategorias, setTodasLasCategorias] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardadasAdmin = localStorage.getItem('ag47_categorias_admin');
-      if (guardadasAdmin) {
-        try {
-          const parsed = JSON.parse(guardadasAdmin);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.map((nombreCat: string, idx: number) => ({
-              id: idx + 1,
-              nombre: nombreCat,
-              foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500'
-            }));
-          }
-        } catch(e) {}
-      }
-    }
-    return [
-      { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
-      { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
-      { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
-      { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
-      { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
-      { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
-    ];
-  });
-
-  // INVENTARIO DINÁMICO (Sincronizado con el stock y productos del Admin)
-  const [productos, setProductos] = useState([
-    {
-      id: 101,
-      sku: '24665-38850',
-      nombre: 'Anillo de Zircones Solitario Garra',
-      categoria: 'Anillos',
-      precioMinorista: 220,
-      esNuevo: true,
-      material: 'Plata 925',
-      descripcion: 'Anillo de Zircones pavé de alta refracción. Sortija estilo clásico.',
-      fotos: [
-        'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800',
-        'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800'
-      ],
-      variantes: [
-        { id: 'v1', medida: '5', peso: 2.3, stock: 5 },
-        { id: 'v2', medida: '6', peso: 2.5, stock: 8 },
-        { id: 'v3', medida: '7', peso: 2.7, stock: 0 }
-      ]
-    },
-    {
-      id: 102,
-      sku: 'CAD-005',
-      nombre: 'Gargantilla Escalera Plata 925',
-      categoria: 'Gargantillas',
-      precioMinorista: 600,
-      esNuevo: true,
-      material: 'Plata 925',
-      descripcion: 'Gargantilla de tejido italiano fino con acabado de espejo en plata rodinada.',
-      fotos: [
-        'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800'
-      ],
-      variantes: [
-        { id: 'v4', medida: '40 cm', peso: 10.2, stock: 2 },
-        { id: 'v5', medida: '45 cm', peso: 11.5, stock: 4 }
-      ]
-    },
-    {
-      id: 103,
-      sku: 'PUL-088',
-      nombre: 'Pulsera Tejido Italiano Dije Corazón',
-      categoria: 'Pulseras',
-      precioMinorista: 450,
-      esNuevo: false,
-      material: 'Plata 925',
-      descripcion: 'Pulsera elegante en plata 925 con broche marinero reforzado y dije colgante.',
-      fotos: [
-        'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800'
-      ],
-      variantes: [
-        { id: 'v6', medida: '18 cm', peso: 7.8, stock: 6 },
-        { id: 'v7', medida: '20 cm', peso: 8.4, stock: 3 }
-      ]
-    },
-    {
-      id: 104,
-      sku: 'ARE-021',
-      nombre: 'Aretes Arrancadas Zirconias Pavé',
-      categoria: 'Aretes',
-      precioMinorista: 310,
-      esNuevo: true,
-      material: 'Plata 925',
-      descripcion: 'Arrancadas clásicas pavé con incrustaciones de micro zirconias suizas.',
-      fotos: [
-        'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800'
-      ],
-      variantes: [
-        { id: 'v8', medida: 'Par Estándar', peso: 4.1, stock: 10 }
-      ]
-    }
+  // CATEGORÍAS Y PRODUCTOS CARGADOS DIRECTAMENTE DESDE SUPABASE
+  const [todasLasCategorias, setTodasLasCategorias] = useState<any[]>([
+    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
   ]);
 
-  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE Y SUPABASE (ADMIN -> TIENDA)
-  const cargarDatosSincronizados = async () => {
+  const [productos, setProductos] = useState<any[]>([]);
+
+  // FUNCIÓN PARA CARGAR DATOS EN TIEMPO REAL DESDE SUPABASE
+  const cargarDatosDesdeSupabase = async () => {
     if (typeof window !== 'undefined') {
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
       if (guardadosPedidos) {
         try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
       }
+    }
 
-      // Cargar configuración de marca, logo, banner y textos guardados en el Admin
-      const configAdmin = localStorage.getItem('config_portada_ag47');
-      if (configAdmin) {
-        try {
-          const parsed = JSON.parse(configAdmin);
-          setInfoAdmin({
-            logoUrl: parsed.logoUrl || '',
-            bannerUrl: parsed.bannerUrl || '',
-            titulo: parsed.titulo || 'Colección Mayorista y Minorista',
-            subtitulo: parsed.subtitulo || 'Especial de Temporada - Joyería en Plata 925',
-            direcciones: parsed.direcciones || ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
-            telefonos: parsed.telefonos || ['+502 5555-1234'],
-            nosotrosTexto: parsed.nosotrosTexto || 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
-          });
-        } catch(e) {}
+    try {
+      // 1. Cargar Configuración de Tienda
+      const { data: configData } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
+      if (configData && configData.datos) {
+        setInfoAdmin({
+          logoUrl: configData.datos.logoUrl || '',
+          bannerUrl: configData.datos.bannerUrl || '',
+          titulo: configData.datos.titulo || 'Colección Mayorista y Minorista',
+          subtitulo: configData.datos.subtitulo || 'Especial de Temporada - Joyería en Plata 925',
+          direcciones: configData.datos.direcciones || ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
+          telefonos: configData.datos.telefonos || ['+502 5555-1234'],
+          nosotrosTexto: configData.datos.nosotrosTexto || 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925.'
+        });
       }
 
-      try {
-        const { data } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
-        if (data && data.datos) {
-          setInfoAdmin({
-            logoUrl: data.datos.logoUrl || '',
-            bannerUrl: data.datos.bannerUrl || '',
-            titulo: data.datos.titulo || 'Colección Mayorista y Minorista',
-            subtitulo: data.datos.subtitulo || 'Especial de Temporada - Joyería en Plata 925',
-            direcciones: data.datos.direcciones || ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala'],
-            telefonos: data.datos.telefonos || ['+502 5555-1234'],
-            nosotrosTexto: data.datos.nosotrosTexto || 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
-          });
-        }
-      } catch (err) {}
-
-      const stockAdmin = localStorage.getItem('ag47_inventario_admin');
-      if (stockAdmin) {
-        try {
-          const parsedStock = JSON.parse(stockAdmin);
-          if (Array.isArray(parsedStock)) {
-            setProductos(parsedStock);
-          }
-        } catch(e) {}
+      // 2. Cargar Productos desde Supabase
+      const { data: productosData, error: errProd } = await supabase.from('productos').select('*');
+      if (!errProd && productosData && productosData.length > 0) {
+        // Mapeamos los datos por si vienen estructurados desde la base de datos
+        const prodsMapeados = productosData.map((p: any) => ({
+          id: p.id,
+          sku: p.sku || p.codigo || 'SKU-000',
+          nombre: p.nombre,
+          categoria: p.categoria,
+          precioMinorista: Number(p.precio_minorista || p.precioMinorista || 0),
+          esNuevo: p.es_nuevo ?? p.esNuevo ?? true,
+          material: p.material || 'Plata 925',
+          descripcion: p.descripcion || '',
+          fotos: p.fotos || (p.foto ? [p.foto] : ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800']),
+          variantes: p.variantes || [{ id: 'v1', medida: 'Estándar', peso: p.peso || 2, stock: p.stock || 10 }]
+        }));
+        setProductos(prodsMapeados);
       }
 
-      const catsAdmin = localStorage.getItem('ag47_categorias_admin');
-      if (catsAdmin) {
-        try {
-          const parsedCats = JSON.parse(catsAdmin);
-          if (Array.isArray(parsedCats) && parsedCats.length > 0) {
-            const catsMapeadas = parsedCats.map((nombreCat: string, idx: number) => ({
-              id: idx + 1,
-              nombre: nombreCat,
-              foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500'
-            }));
-            setTodasLasCategorias(catsMapeadas);
-          }
-        } catch(e) {}
+      // 3. Cargar Categorías desde Supabase
+      const { data: catsData, error: errCats } = await supabase.from('categorias').select('*');
+      if (!errCats && catsData && catsData.length > 0) {
+        const catsMapeadas = catsData.map((c: any, idx: number) => ({
+          id: c.id || idx + 1,
+          nombre: c.nombre || c,
+          foto: c.foto || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500'
+        }));
+        setTodasLasCategorias(catsMapeadas);
       }
+    } catch (err) {
+      console.error('Error al conectar con Supabase:', err);
     }
   };
 
   useEffect(() => {
-    cargarDatosSincronizados();
+    cargarDatosDesdeSupabase();
 
-    window.addEventListener('storage', cargarDatosSincronizados);
+    // Suscripción en tiempo real a cambios en Supabase para actualización instantánea en tablets y celulares
+    const channel = supabase
+      .channel('cambios-tienda')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
+        cargarDatosDesdeSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config_tienda' }, () => {
+        cargarDatosDesdeSupabase();
+      })
+      .subscribe();
+
     return () => {
-      window.removeEventListener('storage', cargarDatosSincronizados);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -251,20 +164,6 @@ export default function TiendaPublica() {
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
-      
-      if (typeof window !== 'undefined') {
-        const mayoristasAdminLocal = localStorage.getItem('ag47_mayoristas_admin');
-        if (mayoristasAdminLocal) {
-          try {
-            const listaLocal = JSON.parse(mayoristasAdminLocal);
-            const encontradoLocal = listaLocal.find((m: any) => m.id === clienteMayoristaActivo.id || m.usuario === clienteMayoristaActivo.usuario);
-            if (encontradoLocal && (encontradoLocal.precios_gramo || encontradoLocal.preciosGramoPorCategoria)) {
-              preciosGramoFinal = encontradoLocal.precios_gramo || encontradoLocal.preciosGramoPorCategoria;
-            }
-          } catch(e) {}
-        }
-      }
-
       const tarifaGramo = preciosGramoFinal[producto.categoria] || 36;
       const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
       return Number((pesoUnitario * tarifaGramo).toFixed(2));
@@ -281,7 +180,7 @@ export default function TiendaPublica() {
   const abrirModalDetalle = (prod: any) => {
     setProductoSeleccionadoModal(prod);
     setFotoActivaIndex(0);
-    const primeraDisponible = prod.variantes.find((v: any) => (v.stock || 0) > 0) || prod.variantes[0] || null;
+    const primeraDisponible = prod.variantes?.find((v: any) => (v.stock || 0) > 0) || prod.variantes?.[0] || null;
     setVarianteElegida(primeraDisponible);
     setCantidadModal(1);
   };
@@ -539,7 +438,7 @@ export default function TiendaPublica() {
         <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
-            {/* LOGOTIPO DINÁMICO CONECTADO AL PANEL DE ADMINISTRACIÓN */}
+            {/* LOGOTIPO DINÁMICO */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
               <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0 shadow-sm">
                 {infoAdmin.logoUrl ? (
@@ -594,7 +493,7 @@ export default function TiendaPublica() {
 
         {vistaActual === 'inicio' && (
           <>
-            {/* SECCIÓN HERO / BANNER PRINCIPAL DINÁMICO */}
+            {/* SECCIÓN HERO / BANNER PRINCIPAL */}
             <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
                 <div className="max-w-xl space-y-6 text-center md:text-left">
@@ -667,22 +566,10 @@ export default function TiendaPublica() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                   {productos.map((prod) => {
-                    const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
-                    const pesoBase = prod.variantes[0]?.peso || 0;
+                    const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes?.[0]);
+                    const pesoBase = prod.variantes?.[0]?.peso || 0;
                     
                     let preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
-                    if (typeof window !== 'undefined') {
-                      try {
-                        const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
-                        if (localAdmin) {
-                          const parsedLocal = JSON.parse(localAdmin);
-                          const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo?.id);
-                          if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
-                            preciosGramoCliente = enc.precios_gramo || enc.preciosGramoPorCategoria;
-                          }
-                        }
-                      } catch(e) {}
-                    }
                     const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                     const stockTotal = calcularStockTotalProducto(prod);
                     const estaAgotadoTotal = stockTotal <= 0;
@@ -830,22 +717,10 @@ export default function TiendaPublica() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
               {productosFiltrados.map((prod) => {
-                const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes[0]);
-                const pesoBase = prod.variantes[0]?.peso || 0;
+                const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes?.[0]);
+                const pesoBase = prod.variantes?.[0]?.peso || 0;
                 
                 let preciosGramoCliente = clienteMayoristaActivo?.precios_gramo || clienteMayoristaActivo?.preciosGramoPorCategoria || {};
-                if (typeof window !== 'undefined') {
-                  try {
-                    const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
-                    if (localAdmin) {
-                      const parsedLocal = JSON.parse(localAdmin);
-                      const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo?.id);
-                      if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
-                        preciosGramoCliente = enc.precios_gramo || enc.preciosGramoPorCategoria;
-                      }
-                    }
-                  } catch(e) {}
-                }
                 const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                 const stockTotal = calcularStockTotalProducto(prod);
                 const estaAgotadoTotal = stockTotal <= 0;
@@ -1291,18 +1166,6 @@ export default function TiendaPublica() {
 
                 {esMayorista && clienteMayoristaActivo ? (() => {
                   let preciosGramoModal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
-                  if (typeof window !== 'undefined') {
-                    try {
-                      const localAdmin = localStorage.getItem('ag47_mayoristas_admin');
-                      if (localAdmin) {
-                        const parsedLocal = JSON.parse(localAdmin);
-                        const enc = parsedLocal.find((m: any) => m.id === clienteMayoristaActivo.id);
-                        if (enc && (enc.precios_gramo || enc.preciosGramoPorCategoria)) {
-                          preciosGramoModal = enc.precios_gramo || enc.preciosGramoPorCategoria;
-                        }
-                      }
-                    } catch(e) {}
-                  }
                   const tarifaActualModal = preciosGramoModal[productoSeleccionadoModal.categoria] || 36;
                   return (
                     <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
@@ -1334,7 +1197,7 @@ export default function TiendaPublica() {
                   <div className="flex items-center space-x-3">
                     <span className="font-bold text-zinc-700 w-20">Tallas (us)</span>
                     <div className="flex flex-wrap gap-2">
-                      {productoSeleccionadoModal.variantes.map((v: any) => {
+                      {productoSeleccionadoModal.variantes?.map((v: any) => {
                         const sinStock = (v.stock || 0) <= 0;
                         return (
                           <button
@@ -1394,7 +1257,7 @@ export default function TiendaPublica() {
                   <div key={prodSim.id} onClick={() => abrirModalDetalle(prodSim)} className="bg-white p-3 rounded-xl border border-zinc-200 cursor-pointer text-center">
                     <img src={prodSim.fotos[0]} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />
                     <p className="font-serif font-bold text-xs text-zinc-800 truncate">{prodSim.nombre}</p>
-                    <p className="font-bold text-xs text-amber-800">Q{obtenerPrecioCalculado(prodSim, prodSim.variantes[0]).toFixed(2)}</p>
+                    <p className="font-bold text-xs text-amber-800">Q{obtenerPrecioCalculado(prodSim, prodSim.variantes?.[0]).toFixed(2)}</p>
                   </div>
                 ))}
               </div>

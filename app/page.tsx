@@ -28,6 +28,16 @@ export default function TiendaPublica() {
     nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
   });
 
+  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON EL ADMIN
+  const [todasLasCategorias, setTodasLasCategorias] = useState([
+    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
+    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
+    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
+    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
+    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
+    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
+  ]);
+
   // INVENTARIO DINÁMICO (Sincronizado con el stock y productos del Admin)
   const [productos, setProductos] = useState([
     {
@@ -101,8 +111,8 @@ export default function TiendaPublica() {
     }
   ]);
 
-  // SINCRONIZACIÓN AUTOMÁTICA CON LOCALSTORAGE (Admin <-> Tienda)
-  useEffect(() => {
+  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE (Admin <-> Tienda)
+  const cargarDatosSincronizados = () => {
     if (typeof window !== 'undefined') {
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
       if (guardadosPedidos) {
@@ -125,13 +135,39 @@ export default function TiendaPublica() {
       if (stockAdmin) {
         try {
           const parsedStock = JSON.parse(stockAdmin);
-          if (Array.isArray(parsedStock) && parsedStock.length > 0) {
+          if (Array.isArray(parsedStock)) {
             setProductos(parsedStock);
           }
         } catch(e) {}
       }
+
+      const catsAdmin = localStorage.getItem('ag47_categorias_admin');
+      if (catsAdmin) {
+        try {
+          const parsedCats = JSON.parse(catsAdmin);
+          if (Array.isArray(parsedCats) && parsedCats.length > 0) {
+            // Mapear nombres de categorías a objetos con fotos de respaldo
+            const catsMapeadas = parsedCats.map((nombreCat: string, idx: number) => ({
+              id: idx + 1,
+              nombre: nombreCat,
+              foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500'
+            }));
+            setTodasLasCategorias(catsMapeadas);
+          }
+        } catch(e) {}
+      }
     }
-  }, [vistaActual]);
+  };
+
+  // EFECTO DE CARGA INICIAL Y ESCUCHA DE EVENTOS EN TIEMPO REAL
+  useEffect(() => {
+    cargarDatosSincronizados();
+
+    window.addEventListener('storage', cargarDatosSincronizados);
+    return () => {
+      window.removeEventListener('storage', cargarDatosSincronizados);
+    };
+  }, []);
 
   const [loginUsuario, setLoginUsuario] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -161,15 +197,6 @@ export default function TiendaPublica() {
 
   const [numeroOrdenGenerado, setNumeroOrdenGenerado] = useState('');
 
-  const [todasLasCategorias] = useState([
-    { id: 1, nombre: 'Anillos', foto: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=500' },
-    { id: 2, nombre: 'Aretes', foto: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=500' },
-    { id: 3, nombre: 'Gargantillas', foto: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500' },
-    { id: 4, nombre: 'Pulseras', foto: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=500' },
-    { id: 5, nombre: 'Dijes & Medallas', foto: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500' },
-    { id: 6, nombre: 'Cadenas', foto: 'https://images.unsplash.com/photo-1599643477877-530eb83abc8e?w=500' },
-  ]);
-
   const calcularStockTotalProducto = (prod: any) => {
     if (!prod.variantes || prod.variantes.length === 0) return 0;
     return prod.variantes.reduce((acc: number, v: any) => acc + (Number(v.stock) || 0), 0);
@@ -187,7 +214,6 @@ export default function TiendaPublica() {
     if (esMayorista && clienteMayoristaActivo) {
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
       
-      // Intentar leer si el admin actualizó los precios de este mayorista en el navegador local
       if (typeof window !== 'undefined') {
         const mayoristasAdminLocal = localStorage.getItem('ag47_mayoristas_admin');
         if (mayoristasAdminLocal) {
@@ -343,6 +369,7 @@ export default function TiendaPublica() {
     const pedidosPrevios = JSON.parse(localStorage.getItem('ag47_pedidos_admin') || '[]');
     const pedidosActualizados = [nuevoPedidoWeb, ...pedidosPrevios];
     localStorage.setItem('ag47_pedidos_admin', JSON.stringify(pedidosActualizados));
+    window.dispatchEvent(new Event('storage'));
     setMisPedidos(pedidosActualizados);
     setCarrito([]);
 

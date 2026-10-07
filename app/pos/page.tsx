@@ -70,7 +70,7 @@ export default function PosPage() {
   );
 }
 
-// Cliente base por defecto (Minorista)
+// Cliente base obligatorio
 const clienteMinoristaBase = { 
   id: 'PUBLICO', 
   nombre: 'Cliente General (Minorista)', 
@@ -89,7 +89,7 @@ function PosDashboardContent() {
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // INVENTARIO SINCRONIZADO EN TIEMPO REAL CON EL ADMIN (LocalStorage: ag47_inventario_admin)
+  // 1. INVENTARIO SINCRONIZADO EN TIEMPO REAL CON EL ADMIN
   const [inventario, setInventario] = useState(() => {
     if (typeof window !== 'undefined') {
       const guardados = localStorage.getItem('ag47_inventario_admin');
@@ -114,68 +114,77 @@ function PosDashboardContent() {
     ];
   });
 
-  // Guardar y sincronizar cambios de inventario automáticamente con el Admin y Tienda Pública
   useEffect(() => {
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(inventario));
   }, [inventario]);
 
-  // LISTA DE CLIENTES VINCULADA EN TIEMPO REAL CON EL ADMIN Y SUPABASE (ag47_mayoristas_admin)
-  const [listaClientes, setListaClientes] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardadosMayoristas = localStorage.getItem('ag47_mayoristas_admin');
-      if (guardadosMayoristas) {
+  // 2. FUNCIÓN INTELIGENTE PARA CARGAR CLIENTES DESDE CUALQUIER LLAVE DEL ADMIN
+  const cargarClientesDesdeAdmin = () => {
+    if (typeof window === 'undefined') return [clienteMinoristaBase];
+    
+    let listaEncontrada: any[] = [];
+
+    // Buscar en las posibles llaves que usa tu panel admin
+    const llavesAdmin = ['ag47_clientes', 'ag47_mayoristas_admin', 'ag47_clientes_admin'];
+    for (const llave of llavesAdmin) {
+      const datos = localStorage.getItem(llave);
+      if (datos) {
         try {
-          const parsed = JSON.parse(guardadosMayoristas);
-          const mayoristasMapeados = parsed.map((m: any) => ({
-            id: m.id,
-            nombre: m.nombre,
-            telefono: m.telefono || '50200000000',
-            tipo: 'b2b',
-            tarifaGramo: m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
-            tieneCredito: m.tieneCredito || m.tiene_credito || false,
-            limiteCredito: m.limiteCredito || m.limite_credito || 0,
-            saldoDeuda: m.saldoDeuda || 0,
-            diasCredito: m.diasCredito || m.dias_credito || 15
-          }));
-          return [clienteMinoristaBase, ...mayoristasMapeados];
+          const parsed = JSON.parse(datos);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            listaEncontrada = parsed;
+            break;
+          }
         } catch(e) {}
       }
     }
-    return [
-      clienteMinoristaBase,
-      { id: '101', nombre: 'María López', telefono: '50255550101', tipo: 'b2b', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
-      { id: '102', nombre: 'Marta Gómez', telefono: '50255550202', tipo: 'b2b', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 },
-      { id: '103', nombre: 'Carlos Pérez', telefono: '50255550303', tipo: 'b2b', tarifaGramo: 35, tieneCredito: true, limiteCredito: 3000, saldoDeuda: 500, diasCredito: 15 },
-    ];
-  });
 
-  // EFECTO DE ESCUCHA EN TIEMPO REAL PARA ACTUALIZAR CLIENTES SI SE MODIFICAN EN EL ADMIN
+    if (listaEncontrada.length === 0) {
+      // Clientes por defecto si aún no hay registros en admin
+      return [
+        clienteMinoristaBase,
+        { id: '101', nombre: 'María López', telefono: '50255550101', tipo: 'b2b', tarifaGramo: 36, tieneCredito: true, limiteCredito: 5000, saldoDeuda: 1200, diasCredito: 30 },
+        { id: '102', nombre: 'Marta Gómez', telefono: '50255550202', tipo: 'b2b', tarifaGramo: 33, tieneCredito: false, limiteCredito: 0, saldoDeuda: 0, diasCredito: 0 },
+        { id: '103', nombre: 'Carlos Pérez', telefono: '50255550303', tipo: 'b2b', tarifaGramo: 35, tieneCredito: true, limiteCredito: 3000, saldoDeuda: 500, diasCredito: 15 },
+      ];
+    }
+
+    // Mapear los clientes al formato exacto del POS
+    const mayoristasMapeados = listaEncontrada.map((m: any) => ({
+      id: m.id || String(Math.random()),
+      nombre: m.nombre || m.name || 'Cliente sin nombre',
+      telefono: m.telefono || m.phone || '50200000000',
+      tipo: m.tipo || (m.tarifaGramo || m.precios_gramo ? 'b2b' : 'b2c'),
+      tarifaGramo: m.tarifaGramo || m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
+      tieneCredito: m.tieneCredito ?? m.tiene_credito ?? false,
+      limiteCredito: m.limiteCredito ?? m.limite_credito ?? 0,
+      saldoDeuda: m.saldoDeuda ?? m.saldo_deuda ?? 0,
+      diasCredito: m.diasCredito ?? m.dias_credito ?? 15
+    }));
+
+    return [clienteMinoristaBase, ...mayoristasMapeados];
+  };
+
+  const [listaClientes, setListaClientes] = useState(cargarClientesDesdeAdmin);
+
+  // 3. SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL ENTRE PESTAÑAS (ADMIN <-> POS)
   useEffect(() => {
-    const sincronizarClientesEnTiempoReal = () => {
-      if (typeof window !== 'undefined') {
-        const guardadosMayoristas = localStorage.getItem('ag47_mayoristas_admin');
-        if (guardadosMayoristas) {
-          try {
-            const parsed = JSON.parse(guardadosMayoristas);
-            const mayoristasMapeados = parsed.map((m: any) => ({
-              id: m.id,
-              nombre: m.nombre,
-              telefono: m.telefono || '50200000000',
-              tipo: 'b2b',
-              tarifaGramo: m.precios_gramo?.Anillos || m.preciosGramoPorCategoria?.Anillos || 36,
-              tieneCredito: m.tieneCredito || m.tiene_credito || false,
-              limiteCredito: m.limiteCredito || m.limite_credito || 0,
-              saldoDeuda: m.saldoDeuda || 0,
-              diasCredito: m.diasCredito || m.dias_credito || 15
-            }));
-            setListaClientes([clienteMinoristaBase, ...mayoristasMapeados]);
-          } catch(e) {}
-        }
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.key || e.key.includes('ag47_')) {
+        setListaClientes(cargarClientesDesdeAdmin());
       }
     };
 
-    window.addEventListener('storage', sincronizarClientesEnTiempoReal);
-    return () => window.removeEventListener('storage', sincronizarClientesEnTiempoReal);
+    window.addEventListener('storage', handleStorageChange);
+    // Intervalo de respaldo para refrescar automáticamente cada 2 segundos sin recargar
+    const intervalo = setInterval(() => {
+      setListaClientes(cargarClientesDesdeAdmin());
+    }, 2000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(intervalo);
+    };
   }, []);
 
   const [busquedaProd, setBusquedaProd] = useState('');
@@ -199,7 +208,6 @@ function PosDashboardContent() {
     c.telefono.includes(busquedaCliente)
   );
 
-  // Calcular precio según el producto y sus variantes
   const obtenerPrecioItem = (prod: any) => {
     if (clienteSeleccionado.tipo === 'b2b') {
       const tarifa = clienteSeleccionado.tarifaGramo || 35;
@@ -209,7 +217,6 @@ function PosDashboardContent() {
     return prod.precioMinorista;
   };
 
-  // Agregar producto/variante al carrito
   const agregarAlCarrito = (prod: any, varianteIndex = 0) => {
     const variante = prod.variantes?.[varianteIndex] || { medida: 'Única', peso: 5, stock: prod.stock || 5 };
     
@@ -249,7 +256,6 @@ function PosDashboardContent() {
     }
   };
 
-  // Escáner de Código de Barras o SKU
   const manejarEscaner = (e: React.FormEvent) => {
     e.preventDefault();
     if (!skuEscaner.trim()) return;
@@ -274,7 +280,6 @@ function PosDashboardContent() {
         const nuevaCant = item.cantidad + delta;
         if (nuevaCant <= 0) return null;
         
-        // Buscar stock en inventario
         const prodOriginal = inventario.find((p: any) => p.id === item.productoId);
         const varOriginal = prodOriginal?.variantes?.find((v: any) => v.medida === item.medida);
         const stockMax = varOriginal ? varOriginal.stock : 10;
@@ -310,7 +315,6 @@ function PosDashboardContent() {
     ? Math.max(0, clienteSeleccionado.limiteCredito - clienteSeleccionado.saldoDeuda) 
     : 0;
 
-  // PROCESAR VENTA Y DESCONTAR INVENTARIO EN TIEMPO REAL (ADMIN Y PÁGINA)
   const procesarVenta = () => {
     if (carrito.length === 0) return alert('El carrito está vacío');
 
@@ -327,7 +331,6 @@ function PosDashboardContent() {
       }
     }
 
-    // DESCONTAR STOCK REAL DE CADA VARIANTE EN EL INVENTARIO GLOBAL
     const nuevoInventario = inventario.map((prod: any) => {
       const itemsDelProd = carrito.filter(c => c.productoId === prod.id);
       if (itemsDelProd.length > 0) {
@@ -413,11 +416,17 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Clientes y Stock Sincronizados en Tiempo Real</p>
+            <p className="text-xs text-slate-400">Clientes y Stock Sincronizados con Admin</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setListaClientes(cargarClientesDesdeAdmin())}
+            className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1.5"
+          >
+            <span>🔄 Sincronizar Clientes</span>
+          </button>
           <button 
             onClick={() => router.push('/admin')}
             className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl transition font-mono"
@@ -475,7 +484,7 @@ function PosDashboardContent() {
                 className="bg-slate-900 border border-amber-500/50 p-2.5 rounded-xl text-xs font-bold text-amber-400 flex justify-between items-center cursor-pointer select-none"
               >
                 <div className="truncate">
-                  <span className="text-[10px] text-slate-400 uppercase block font-mono">Cliente Seleccionado:</span>
+                  <span className="text-[10px] text-slate-400 uppercase block font-mono">Cliente Seleccionado ({listaClientes.length} disp):</span>
                   <span className="text-white font-bold">{clienteSeleccionado.nombre}</span>
                   {clienteSeleccionado.tipo === 'b2b' && (
                     <span className="text-amber-400 font-mono text-[10px] ml-1.5">(Q{clienteSeleccionado.tarifaGramo}/g)</span>

@@ -72,7 +72,6 @@ export default function AdminPage() {
 function AdminDashboard() {
   const [seccion, setSeccion] = useState('pedidos');
 
-  // CATEGORÍAS DINÁMICAS SINCRONIZADAS CON SUPABASE
   const [categoriasBase, setCategoriasBase] = useState<string[]>([
     'Pulseras', 'Anillos', 'Cadenas', 'Aretes', 'Gargantillas', 'Dijes'
   ]);
@@ -81,7 +80,6 @@ function AdminDashboard() {
   const [editandoCategoriaIndex, setEditandoCategoriaIndex] = useState<number | null>(null);
   const [nombreCatEditada, setNombreCatEditada] = useState('');
 
-  // CARGAR CATEGORÍAS DESDE SUPABASE AL INICIAR
   useEffect(() => {
     const cargarCategoriasSupabase = async () => {
       const { data, error } = await supabase.from('categorias').select('*');
@@ -107,7 +105,6 @@ function AdminDashboard() {
       return alert('Esa categoría ya existe.');
     }
 
-    // Insertar en Supabase
     const { error } = await supabase.from('categorias').insert([{ nombre: catLimpia }]);
     if (error) {
       alert('Error al guardar categoría en Supabase: ' + error.message);
@@ -126,7 +123,6 @@ function AdminDashboard() {
       return alert('Debes mantener al menos una categoría.');
     }
     if (confirm(`¿Estás seguro de eliminar la categoría "${catAEliminar}"?`)) {
-      // Eliminar de Supabase
       const { error } = await supabase.from('categorias').delete().eq('nombre', catAEliminar);
       if (error) {
         alert('Error al eliminar en Supabase: ' + error.message);
@@ -145,7 +141,6 @@ function AdminDashboard() {
     if (!nombreNuevo) return;
     const catAntigua = categoriasBase[indexOriginal];
 
-    // Actualizar en Supabase (borrar antigua e insertar nueva o actualizar registro)
     await supabase.from('categorias').delete().eq('nombre', catAntigua);
     const { error } = await supabase.from('categorias').insert([{ nombre: nombreNuevo }]);
 
@@ -159,7 +154,6 @@ function AdminDashboard() {
     setCategoriasBase(actualizadas);
     localStorage.setItem('ag47_categorias_admin', JSON.stringify(actualizadas));
 
-    // Actualizar también la categoría en los productos existentes para que no queden huérfanos
     const productosActualizados = productos.map((p: any) => p.categoria === catAntigua ? { ...p, categoria: nombreNuevo } : p);
     setProductos(productosActualizados);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(productosActualizados));
@@ -173,6 +167,8 @@ function AdminDashboard() {
           nombre: p.nombre,
           categoria: p.categoria,
           precio_minorista: p.precioMinorista,
+          tipo_precio_mayorista: p.tipoPrecioMayorista,
+          precio_pieza_mayorista: p.precioPiezaMayorista,
           fotos: p.fotos,
           variantes: p.variantes
         }]);
@@ -184,28 +180,12 @@ function AdminDashboard() {
     alert('¡Categoría actualizada correctamente en Supabase!');
   };
 
-  // ID del cliente desplegado en la sección B2B
   const [clienteDesplegadoId, setClienteDesplegadoId] = useState<number | null>(1);
-
-  // CREDENCIALES DEL ADMINISTRADOR PRINCIPAL
-  const [adminCredenciales, setAdminCredenciales] = useState({
-    usuario: 'admin',
-    password: '1234'
-  });
-
-  const [formAdminCred, setFormAdminCred] = useState({
-    usuario: adminCredenciales.usuario,
-    password: adminCredenciales.password
-  });
-
-  // BANCO DE IMÁGENES CONECTADO DIRECTAMENTE A SUPABASE (STORAGE + TABLA)
   const [galeriaDrive, setGaleriaDrive] = useState<any[]>([]);
 
-  // CARGAR IMÁGENES DESDE SUPABASE STORAGE / TABLA AL INICIAR
   useEffect(() => {
     const cargarGaleriaSupabase = async () => {
       try {
-        // Obtener archivos del bucket 'joyas' en Supabase Storage
         const { data: archivosStorage, error: errorStorage } = await supabase.storage.from('joyas').list('', {
           limit: 100,
           sortBy: { column: 'created_at', order: 'desc' }
@@ -229,7 +209,6 @@ function AdminDashboard() {
         console.error('Error al listar Supabase Storage:', err);
       }
 
-      // Fallback: Si el storage está vacío o da error, cargar fotos de los productos registrados en Supabase
       const { data: productosData } = await supabase.from('productos').select('fotos, nombre');
       if (productosData && productosData.length > 0) {
         const fotosExtraidas: any[] = [];
@@ -252,7 +231,6 @@ function AdminDashboard() {
         }
       }
 
-      // Último respaldo local si Supabase no devuelve nada
       setGaleriaDrive([
         { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
         { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' }
@@ -263,16 +241,11 @@ function AdminDashboard() {
   }, []);
 
   const [subiendoArchivoSupabase, setSubiendoArchivoSupabase] = useState(false);
-
-  // ESTADO MODAL SELECTOR DE DRIVE / GALERÍA
   const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
   const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
-  
-  // ESTADO PARA SABER QUÉ CAMPO DE IMAGEN ESTAMOS SELECCIONANDO EN LA PORTADA ('logo' o 'banner')
   const [tipoSeleccionPortada, setTipoSeleccionPortada] = useState<'logo' | 'banner' | null>(null);
 
-  // 1. VENDEDORES / TRABAJADORES CON MÉTRICAS MENSUALES COMPLETAS
   const [vendedores, setVendedores] = useState(() => {
     if (typeof window !== 'undefined') {
       const guardados = localStorage.getItem('ag47_vendedores_admin');
@@ -303,7 +276,6 @@ function AdminDashboard() {
     clientesNuevos: 0
   });
 
-  // 2. CLIENTES MAYORISTAS CON TARIFAS, LÍNEA DE CRÉDITO Y CUENTAS POR COBRAR (Sincronizado con Supabase)
   const [mayoristas, setMayoristas] = useState([
     { 
       id: 1, 
@@ -367,7 +339,6 @@ function AdminDashboard() {
     },
   ]);
 
-  // CARGAR CLIENTES MAYORISTAS DESDE SUPABASE AL ABRIR EL ADMIN
   useEffect(() => {
     const cargarMayoristasSupabase = async () => {
       const { data, error } = await supabase.from('mayoristas').select('*');
@@ -402,7 +373,6 @@ function AdminDashboard() {
     cargarMayoristasSupabase();
   }, []);
 
-  // FUNCIÓN PARA GUARDAR CAMBIOS DE UN CLIENTE DIRECTAMENTE EN SUPABASE
   const guardarClienteEnSupabase = async (clienteActualizado: any) => {
     const { error } = await supabase
       .from('mayoristas')
@@ -440,16 +410,12 @@ function AdminDashboard() {
     diasCredito: 15
   });
 
-  const [montoAbonoInput, setMontoAbonoInput] = useState<Record<number, number>>({});
-
-  // 3. PRODUCTOS E INVENTARIO CON CÓDIGO DE BARRAS, TALLAS Y MEDIDAS (SINCRONIZADO DIRECTAMENTE CON SUPABASE)
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
-  const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos'); // 'Todos', 'Disponible', 'Baja cantidad', 'Agotado'
+  const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos');
   const [editandoProductoId, setEditandoProductoId] = useState<number | null>(null);
 
   const [productos, setProductos] = useState<any[]>([]);
 
-  // CARGAR PRODUCTOS DESDE SUPABASE AL ABRIR EL ADMIN
   useEffect(() => {
     const cargarProductosSupabase = async () => {
       const { data, error } = await supabase.from('productos').select('*');
@@ -461,6 +427,8 @@ function AdminDashboard() {
           nombre: p.nombre,
           categoria: p.categoria,
           precioMinorista: Number(p.precio_minorista || 0),
+          tipoPrecioMayorista: p.tipo_precio_mayorista || 'gramo', // 'gramo' o 'pieza'
+          precioPiezaMayorista: Number(p.precio_pieza_mayorista || 0),
           fotos: p.fotos || [],
           variantes: p.variantes || []
         }));
@@ -482,11 +450,12 @@ function AdminDashboard() {
     nombre: '', 
     categoria: categoriasBase[0] || 'Anillos', 
     precioMinorista: 0, 
+    tipoPrecioMayorista: 'gramo' as 'gramo' | 'pieza',
+    precioPiezaMayorista: 0,
     fotos: [] as string[],
     variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
   });
 
-  // FUNCIÓN HÍBRIDA PARA SUBIR ARCHIVO DIRECTAMENTE A SUPABASE STORAGE Y AÑADIRLO A LA GALERÍA
   const manejarSubidaArchivoSupabaseStorage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
@@ -519,7 +488,6 @@ function AdminDashboard() {
         const galeriaActualizada = [nuevaImg, ...galeriaDrive];
         setGaleriaDrive(galeriaActualizada);
 
-        // Auto-añadir la foto recién subida al producto actual (si aplica)
         if (tipoSeleccionPortada === null) {
           setNuevoProd({
             ...nuevoProd,
@@ -536,7 +504,6 @@ function AdminDashboard() {
     }
   };
 
-  // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" (SINCRONIZADO CON SUPABASE)
   const [portada, setPortada] = useState({
     logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
     titulo: 'Colección Mayorista y Minorista',
@@ -557,7 +524,6 @@ function AdminDashboard() {
     nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
   });
 
-  // CARGAR CONFIGURACIÓN DESDE SUPABASE AL INICIAR
   useEffect(() => {
     const cargarConfigSupabase = async () => {
       const { data, error } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
@@ -588,7 +554,6 @@ function AdminDashboard() {
     alert('¡Configuración de marca, textos y estilos guardada en Supabase con éxito!');
   };
 
-  // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS
   const [filtroEstadoPedido, setFiltroEstadoPedido] = useState('Todos');
   const [pedidos, setPedidos] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -628,7 +593,6 @@ function AdminDashboard() {
 
   const [pedidoDetalleModal, setPedidoDetalleModal] = useState<any>(null);
 
-  // 6. CÓDIGOS DE DESCUENTO
   const [cupones, setCupones] = useState([
     { 
       id: 1, 
@@ -663,17 +627,6 @@ function AdminDashboard() {
     productosIds: [] as number[]
   });
 
-  const [busquedaProductoCupon, setBusquedaProductoCupon] = useState('');
-
-  const [mensajePromo, setMensajePromo] = useState({
-    asunto: '¡Tienes un código de descuento especial en AG47!',
-    contenido: 'Hola {{nombre}}, queremos regalarte un cupón exclusivo para tu próxima compra en plata 925.',
-    codigoAdjunto: 'PLATA10',
-    canalWhatsapp: true,
-    canalEmail: true,
-    destinatarioGrupo: 'todos'
-  });
-
   const [reportes] = useState({
     ventasContado: 26050,
     creditosCanceladosMonto: 11200,
@@ -686,14 +639,13 @@ function AdminDashboard() {
     pedidosTiendaPos: 32
   });
 
-  // EXPORTAR CATÁLOGO A FORMATO CSV
   const exportarCatalogoCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,PrecioMinorista,ImagenURL_1,ImagenURL_2\n";
+    let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,PrecioMinorista,TipoMayorista,PrecioPiezaMayorista,ImagenURL_1,ImagenURL_2\n";
     
     productos.forEach(p => {
       const img1 = p.fotos[0] || '';
       const img2 = p.fotos[1] || '';
-      const row = `"${p.sku}","${p.barcode || ''}","${p.nombre}","${p.categoria}",${p.precioMinorista},"${img1}","${img2}"`;
+      const row = `"${p.sku}","${p.barcode || ''}","${p.nombre}","${p.categoria}",${p.precioMinorista},"${p.tipoPrecioMayorista}",${p.precioPiezaMayorista || 0},"${img1}","${img2}"`;
       csvContent += row + "\r\n";
     });
 
@@ -875,11 +827,15 @@ function AdminDashboard() {
     setNuevoProd({ ...nuevoProd, variantes: nuevasVar });
   };
 
-  // GUARDAR O ACTUALIZAR PRODUCTO DIRECTAMENTE EN SUPABASE
   const guardarOActualizarProducto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (nuevoProd.fotos.length === 0) {
       return alert('Por favor selecciona o sube al menos una imagen.');
+    }
+
+    // Validación: Si eligió precio por pieza, debe indicar el precio pieza mayorista. Si eligió gramo, se omite.
+    if (nuevoProd.tipoPrecioMayorista === 'pieza' && (!nuevoProd.precioPiezaMayorista || nuevoProd.precioPiezaMayorista <= 0)) {
+      return alert('Por favor ingresa un precio de pieza mayorista válido.');
     }
 
     const productoIdFinal = editandoProductoId !== null ? editandoProductoId : Date.now();
@@ -890,11 +846,12 @@ function AdminDashboard() {
       nombre: nuevoProd.nombre,
       categoria: nuevoProd.categoria,
       precio_minorista: Number(nuevoProd.precioMinorista),
+      tipo_precio_mayorista: nuevoProd.tipoPrecioMayorista,
+      precio_pieza_mayorista: nuevoProd.tipoPrecioMayorista === 'pieza' ? Number(nuevoProd.precioPiezaMayorista) : 0,
       fotos: nuevoProd.fotos,
       variantes: nuevoProd.variantes
     };
 
-    // Guardar en Supabase
     const { error } = await supabase.from('productos').upsert([productoObj]);
 
     if (error) {
@@ -902,7 +859,6 @@ function AdminDashboard() {
       return;
     }
 
-    // Actualizar estado local
     const productoLocalMapeado = {
       id: productoObj.id,
       sku: productoObj.sku,
@@ -910,6 +866,8 @@ function AdminDashboard() {
       nombre: productoObj.nombre,
       categoria: productoObj.categoria,
       precioMinorista: productoObj.precio_minorista,
+      tipoPrecioMayorista: productoObj.tipo_precio_mayorista,
+      precioPiezaMayorista: productoObj.precio_pieza_mayorista,
       fotos: productoObj.fotos,
       variantes: productoObj.variantes
     };
@@ -927,10 +885,19 @@ function AdminDashboard() {
       alert('¡Joya guardada y sincronizada exitosamente en Supabase!');
     }
     
-    setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0] || 'Anillos', precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
+    setNuevoProd({ 
+      sku: '', 
+      barcode: '', 
+      nombre: '', 
+      categoria: categoriasBase[0] || 'Anillos', 
+      precioMinorista: 0, 
+      tipoPrecioMayorista: 'gramo',
+      precioPiezaMayorista: 0,
+      fotos: [], 
+      variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] 
+    });
   };
 
-  // ELIMINAR PRODUCTO DE SUPABASE Y LOCAL
   const eliminarProducto = async (id: number) => {
     if (confirm('¿Estás seguro de eliminar este producto del inventario?')) {
       const { error } = await supabase.from('productos').delete().eq('id', id);
@@ -954,6 +921,8 @@ function AdminDashboard() {
       nombre: p.nombre,
       categoria: p.categoria,
       precioMinorista: p.precioMinorista,
+      tipoPrecioMayorista: p.tipoPrecioMayorista || 'gramo',
+      precioPiezaMayorista: p.precioPiezaMayorista || 0,
       fotos: p.fotos,
       variantes: p.variantes
     });
@@ -1647,7 +1616,7 @@ function AdminDashboard() {
                     type="button" 
                     onClick={() => {
                       setEditandoProductoId(null);
-                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
+                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
                     }} 
                     className="text-rose-400 font-bold hover:underline"
                   >
@@ -1664,6 +1633,52 @@ function AdminDashboard() {
                   {categoriasBase.map((c: string) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
+              </div>
+
+              {/* NUEVA SECCIÓN: TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                <label className="block font-bold text-amber-400 uppercase text-[11px]">Modalidad de Precio Mayorista *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'gramo' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}>
+                    <input 
+                      type="radio" 
+                      name="tipoPrecioMay" 
+                      checked={nuevoProd.tipoPrecioMayorista === 'gramo'} 
+                      onChange={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0 })} 
+                    />
+                    <div>
+                      <span className="font-bold text-white block">Calcular por Gramo</span>
+                      <span className="text-[10px] text-slate-400">Se calcula multiplicando el peso por la tarifa del cliente.</span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'pieza' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}>
+                    <input 
+                      type="radio" 
+                      name="tipoPrecioMay" 
+                      checked={nuevoProd.tipoPrecioMayorista === 'pieza'} 
+                      onChange={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'pieza' })} 
+                    />
+                    <div>
+                      <span className="font-bold text-white block">Precio Fijo por Pieza</span>
+                      <span className="text-[10px] text-slate-400">Se cobra un monto fijo al mayoreo sin importar el gramaje.</span>
+                    </div>
+                  </label>
+                </div>
+
+                {nuevoProd.tipoPrecioMayorista === 'pieza' && (
+                  <div className="pt-2">
+                    <label className="block text-slate-300 font-bold mb-1">Precio Fijo Mayorista por Pieza (Q) *</label>
+                    <input 
+                      type="number" 
+                      placeholder="Ej. 150.00" 
+                      value={nuevoProd.precioPiezaMayorista || ''} 
+                      onChange={(e) => setNuevoProd({ ...nuevoProd, precioPiezaMayorista: Number(e.target.value) })} 
+                      className="w-full max-w-xs p-2.5 bg-slate-900 border border-amber-500 rounded text-amber-400 font-bold"
+                      required={nuevoProd.tipoPrecioMayorista === 'pieza'}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3 pt-2 border-t border-slate-800">
@@ -1729,7 +1744,7 @@ function AdminDashboard() {
                           </span>
                         </div>
                         <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
-                        <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista}</p>
+                        <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q${p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
@@ -1778,7 +1793,6 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* SECCIÓN ACTUALIZADA CON EL SELECTOR DE GALERÍA SUPABASE PARA LOGO Y BANNER */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 Imágenes Institucionales (Logo y Banner)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1803,7 +1817,7 @@ function AdminDashboard() {
                             setImagenesSeleccionadasTemp(portada.logoUrl ? [portada.logoUrl] : []);
                             setModalGaleriaAbierto(true);
                           }}
-                          className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
+                          className="w-full bg-amber-500/25 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
                         >
                           📁 Seleccionar Logo desde Galería Supabase
                         </button>
@@ -1831,7 +1845,7 @@ function AdminDashboard() {
                             setImagenesSeleccionadasTemp(portada.bannerUrl ? [portada.bannerUrl] : []);
                             setModalGaleriaAbierto(true);
                           }}
-                          className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
+                          className="w-full bg-amber-500/25 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
                         >
                           📁 Seleccionar Banner desde Galería Supabase
                         </button>
@@ -2006,10 +2020,8 @@ function AdminDashboard() {
                       key={img.id}
                       onClick={() => {
                         if (tipoSeleccionPortada) {
-                          // Selección única para Logo o Banner
                           setImagenesSeleccionadasTemp([img.url]);
                         } else {
-                          // Selección múltiple para Productos
                           if (estaMarcada) {
                             setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter((u: string) => u !== img.url));
                           } else {

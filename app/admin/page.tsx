@@ -198,23 +198,69 @@ function AdminDashboard() {
     password: adminCredenciales.password
   });
 
-  // BANCO DE IMÁGENES HÍBRIDO (Sincronizado con Supabase Storage y LocalStorage)
-  const [galeriaDrive, setGaleriaDrive] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardadas = localStorage.getItem('ag47_galeria_drive');
-      if (guardadas) {
-        try { return JSON.parse(guardadas); } catch(e) {}
+  // BANCO DE IMÁGENES CONECTADO DIRECTAMENTE A SUPABASE (STORAGE + TABLA)
+  const [galeriaDrive, setGaleriaDrive] = useState<any[]>([]);
+
+  // CARGAR IMÁGENES DESDE SUPABASE STORAGE / TABLA AL INICIAR
+  useEffect(() => {
+    const cargarGaleriaSupabase = async () => {
+      try {
+        // Obtener archivos del bucket 'joyas' en Supabase Storage
+        const { data: archivosStorage, error: errorStorage } = await supabase.storage.from('joyas').list('', {
+          limit: 100,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+        if (!errorStorage && archivosStorage && archivosStorage.length > 0) {
+          const listaMapeada = archivosStorage
+            .filter((archivo: any) => archivo.name && archivo.name !== '.emptyFolderPlaceholder')
+            .map((archivo: any) => {
+              const { data: urlData } = supabase.storage.from('joyas').getPublicUrl(archivo.name);
+              return {
+                id: archivo.id || `img_${Math.random()}`,
+                url: urlData.publicUrl,
+                nombre: archivo.name
+              };
+            });
+          setGaleriaDrive(listaMapeada);
+          return;
+        }
+      } catch (err) {
+        console.error('Error al listar Supabase Storage:', err);
       }
-    }
-    return [
-      { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
-      { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' },
-      { id: 'img_3', url: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=800', nombre: '2.8_T7_9.5.jpg' },
-      { id: 'img_4', url: 'https://images.unsplash.com/photo-1611591475170-22c2a382c069?w=800', nombre: '2.5_T8.5.jpg' },
-      { id: 'img_5', url: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?w=800', nombre: 'Aretes_Pave.jpg' },
-      { id: 'img_6', url: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800', nombre: 'Dije_Medalla.jpg' }
-    ];
-  });
+
+      // Fallback: Si el storage está vacío o da error, cargar fotos de los productos registrados en Supabase
+      const { data: productosData } = await supabase.from('productos').select('fotos, nombre');
+      if (productosData && productosData.length > 0) {
+        const fotosExtraidas: any[] = [];
+        productosData.forEach((p: any) => {
+          if (p.fotos && Array.isArray(p.fotos)) {
+            p.fotos.forEach((url: string, idx: number) => {
+              if (url && !fotosExtraidas.some(f => f.url === url)) {
+                fotosExtraidas.push({
+                  id: `prod_img_${p.nombre}_${idx}`,
+                  url: url,
+                  nombre: `${p.nombre}_${idx + 1}.jpg`
+                });
+              }
+            });
+          }
+        });
+        if (fotosExtraidas.length > 0) {
+          setGaleriaDrive(fotosExtraidas);
+          return;
+        }
+      }
+
+      // Último respaldo local si Supabase no devuelve nada
+      setGaleriaDrive([
+        { id: 'img_1', url: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800', nombre: '2.1_T8.jpg' },
+        { id: 'img_2', url: 'https://images.unsplash.com/photo-1603561591411-07134e71a2a9?w=800', nombre: '2.7_T8.jpg' }
+      ]);
+    };
+
+    cargarGaleriaSupabase();
+  }, []);
 
   const [subiendoArchivoSupabase, setSubiendoArchivoSupabase] = useState(false);
 
@@ -472,7 +518,6 @@ function AdminDashboard() {
 
         const galeriaActualizada = [nuevaImg, ...galeriaDrive];
         setGaleriaDrive(galeriaActualizada);
-        localStorage.setItem('ag47_galeria_drive', JSON.stringify(galeriaActualizada));
 
         // Auto-añadir la foto recién subida al producto actual (si aplica)
         if (tipoSeleccionPortada === null) {
@@ -997,7 +1042,7 @@ function AdminDashboard() {
 
         <div className="space-y-2">
           <button onClick={exportarCatalogoCSV} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 rounded font-bold shadow transition">
-            📥 Exportar CSV con links Drive
+            📥 Exportar CSV con links Supabase
           </button>
           <a href="/" className="block text-center bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-2 rounded font-bold">
             ↗ Ver Tienda Pública
@@ -1632,7 +1677,7 @@ function AdminDashboard() {
                     }}
                     className="py-4 px-3 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition"
                   >
-                    <span className="font-bold text-amber-300 text-xs">📁 Seleccionar de Galería / Banco</span>
+                    <span className="font-bold text-amber-300 text-xs">📁 Seleccionar de Galería Supabase</span>
                     <span className="text-[10px] text-slate-400">({nuevoProd.fotos.length} seleccionadas)</span>
                   </div>
 
@@ -1733,7 +1778,7 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              {/* SECCIÓN ACTUALIZADA CON EL SELECTOR DE GALERÍA PARA LOGO Y BANNER */}
+              {/* SECCIÓN ACTUALIZADA CON EL SELECTOR DE GALERÍA SUPABASE PARA LOGO Y BANNER */}
               <div className="space-y-3">
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 Imágenes Institucionales (Logo y Banner)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1760,7 +1805,7 @@ function AdminDashboard() {
                           }}
                           className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
                         >
-                          📁 Seleccionar Logo desde Galería
+                          📁 Seleccionar Logo desde Galería Supabase
                         </button>
                       </div>
                     </div>
@@ -1788,7 +1833,7 @@ function AdminDashboard() {
                           }}
                           className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
                         >
-                          📁 Seleccionar Banner desde Galería
+                          📁 Seleccionar Banner desde Galería Supabase
                         </button>
                       </div>
                     </div>
@@ -1923,7 +1968,7 @@ function AdminDashboard() {
 
       </main>
 
-      {/* VENTANA MODAL: SELECTOR ESTILO GALERÍA GOOGLE DRIVE */}
+      {/* VENTANA MODAL: SELECTOR GALERÍA SUPABASE */}
       {modalGaleriaAbierto && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 rounded-2xl max-w-4xl w-full p-6 space-y-6 shadow-2xl border border-amber-500/40 max-h-[85vh] flex flex-col text-xs">
@@ -1931,7 +1976,7 @@ function AdminDashboard() {
             <div className="flex justify-between items-center border-b border-slate-800 pb-4">
               <div>
                 <h2 className="font-serif font-bold text-base text-amber-400">
-                  {tipoSeleccionPortada ? `Seleccionar ${tipoSeleccionPortada === 'logo' ? 'Logo' : 'Banner'} desde Galería` : 'Seleccionar imágenes desde Google Drive'}
+                  {tipoSeleccionPortada ? `Seleccionar ${tipoSeleccionPortada === 'logo' ? 'Logo' : 'Banner'} desde Supabase` : 'Seleccionar imágenes de la Galería Supabase'}
                 </h2>
                 <p className="text-[11px] text-slate-400">
                   {tipoSeleccionPortada ? 'Haz clic en la imagen que deseas asignar.' : 'Marca las casillas de verificación de las fotos que deseas asociar al producto.'}

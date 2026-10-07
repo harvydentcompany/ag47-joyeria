@@ -71,7 +71,6 @@ export default function PosPage() {
   );
 }
 
-// Cliente base obligatorio (Minorista)
 const clienteMinoristaBase = { 
   id: 'PUBLICO', 
   nombre: 'Cliente General (Minorista)', 
@@ -90,60 +89,40 @@ function PosDashboardContent() {
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // 1. CARGADOR EXCLUSIVO DEL INVENTARIO DEL ADMIN (SIN DATOS DE MUESTRA)
-  const cargarInventarioAdmin = () => {
-    if (typeof window === 'undefined') return [];
-
-    const guardados = localStorage.getItem('ag47_inventario_admin');
-    if (guardados) {
-      try {
-        const parsed = JSON.parse(guardados);
-        if (Array.isArray(parsed)) {
-          return parsed.map((p: any) => ({
-            ...p,
-            precioMinorista: Number(p.precioMinorista || p.precio || 0),
-            variantes: p.variantes && p.variantes.length > 0 ? p.variantes : [{ medida: 'Única', peso: p.peso || 5, stock: p.stock || 0 }]
-          }));
-        }
-      } catch(e) {}
-    }
-    return [];
-  };
-
-  const [inventario, setInventario] = useState(cargarInventarioAdmin);
-
-  // Sincronización automática de inventario en tiempo real
-  useEffect(() => {
-    const sincronizarInventario = () => {
-      const actualizados = cargarInventarioAdmin();
-      if (actualizados.length > 0) {
-        setInventario(actualizados);
-      }
-    };
-
-    window.addEventListener('storage', sincronizarInventario);
-    const intervalo = setInterval(sincronizarInventario, 1500);
-
-    return () => {
-      window.removeEventListener('storage', sincronizarInventario);
-      clearInterval(intervalo);
-    };
-  }, []);
-
-  // Guardar inventario actualizado en el admin cuando se procesa una venta en el POS
-  const guardarInventarioEnAdmin = (nuevoInventario: any[]) => {
-    setInventario(nuevoInventario);
-    localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
-  };
-
-  // 2. LISTA DE CLIENTES (CARGA DIRECTA DE SUPABASE + RESPALDO LOCAL)
+  // CARGADOR DESDE SUPABASE Y LOCALSTORAGE (SIN PRODUCTOS DE MUESTRA)
+  const [inventario, setInventario] = useState<any[]>([]);
   const [listaClientes, setListaClientes] = useState<any[]>([clienteMinoristaBase]);
 
-  const cargarClientesPOS = async () => {
-    const { data, error } = await supabase.from('mayoristas').select('*');
-    
-    if (!error && data && data.length > 0) {
-      const mayoristasMapeados = data.map((item: any) => ({
+  const cargarDatosPOS = async () => {
+    // 1. Cargar Inventario desde Supabase o LocalStorage del Admin
+    const { data: dataProd, error: errProd } = await supabase.from('productos').select('*');
+    if (!errProd && dataProd && dataProd.length > 0) {
+      const mapeados = dataProd.map((p: any) => ({
+        id: p.id,
+        sku: p.sku,
+        barcode: p.barcode,
+        nombre: p.nombre,
+        categoria: p.categoria,
+        precioMinorista: Number(p.precio_minorista || 0),
+        fotos: p.fotos || [],
+        variantes: p.variantes || []
+      }));
+      setInventario(mapeados);
+    } else {
+      // Respaldo local de admin si no hay red
+      const guardadosLocal = localStorage.getItem('ag47_inventario_admin');
+      if (guardadosLocal) {
+        try {
+          const parsed = JSON.parse(guardadosLocal);
+          if (Array.isArray(parsed)) setInventario(parsed);
+        } catch(e) {}
+      }
+    }
+
+    // 2. Cargar Clientes desde Supabase
+    const { data: dataCli, error: errCli } = await supabase.from('mayoristas').select('*');
+    if (!errCli && dataCli && dataCli.length > 0) {
+      const mayoristasMapeados = dataCli.map((item: any) => ({
         id: item.id || String(Math.random()),
         nombre: item.nombre || 'Sin nombre',
         telefono: item.telefono || '50200000000',
@@ -155,36 +134,11 @@ function PosDashboardContent() {
         diasCredito: Number(item.dias_credito || 15)
       }));
       setListaClientes([clienteMinoristaBase, ...mayoristasMapeados]);
-      return;
-    }
-
-    if (typeof window !== 'undefined') {
-      const guardados = localStorage.getItem('ag47_mayoristas_admin');
-      if (guardados) {
-        try {
-          const parsed = JSON.parse(guardados);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const mayoristasMapeados = parsed.map((m: any) => ({
-              id: m.id || String(Math.random()),
-              nombre: m.nombre || 'Sin Nombre',
-              telefono: m.telefono || '50200000000',
-              tipo: 'b2b',
-              tarifaGramo: Number(m.preciosGramoPorCategoria?.Anillos || m.precios_gramo?.Anillos || 36),
-              tieneCredito: Boolean(m.tieneCredito || m.tiene_credito),
-              limiteCredito: Number(m.limiteCredito || m.limite_credito || 0),
-              saldoDeuda: Number(m.saldoDeuda || m.saldo_deuda || 0),
-              diasCredito: Number(m.diasCredito || m.dias_credito || 15)
-            }));
-            setListaClientes([clienteMinoristaBase, ...mayoristasMapeados]);
-            return;
-          }
-        } catch (e) {}
-      }
     }
   };
 
   useEffect(() => {
-    cargarClientesPOS();
+    cargarDatosPOS();
   }, []);
 
   const [busquedaProd, setBusquedaProd] = useState('');
@@ -209,7 +163,7 @@ function PosDashboardContent() {
   );
 
   const agregarAlCarrito = (prod: any, varianteIndex = 0) => {
-    const variante = prod.variantes?.[varianteIndex] || { medida: 'Única', peso: 5, stock: prod.stock || 5 };
+    const variante = prod.variantes?.[varianteIndex] || { medida: 'Única', peso: 5, stock: 5 };
     
     if (variante.stock <= 0) {
       alert('⚠️ Producto o variante sin existencia en inventario');
@@ -225,7 +179,7 @@ function PosDashboardContent() {
 
     if (existeIndex > -1) {
       if (carrito[existeIndex].cantidad + 1 > variante.stock) {
-        alert('⚠️ Cantidad supera el stock disponible de esta variante');
+        alert('⚠️ Cantidad supera el stock disponible');
         return;
       }
       const nuevoCarrito = [...carrito];
@@ -306,7 +260,7 @@ function PosDashboardContent() {
     ? Math.max(0, clienteSeleccionado.limiteCredito - clienteSeleccionado.saldoDeuda) 
     : 0;
 
-  const procesarVenta = () => {
+  const procesarVenta = async () => {
     if (carrito.length === 0) return alert('El carrito está vacío');
 
     if (metodoPago === 'efectivo' && (typeof montoPagaCon !== 'number' || montoPagaCon < totalPagar)) {
@@ -337,7 +291,25 @@ function PosDashboardContent() {
       return prod;
     });
 
-    guardarInventarioEnAdmin(nuevoInventario);
+    setInventario(nuevoInventario);
+    localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
+
+    // Actualizar stock en Supabase para cada producto vendido
+    for (const prod of nuevoInventario) {
+      const itemsDelProd = carrito.filter(c => c.productoId === prod.id);
+      if (itemsDelProd.length > 0) {
+        await supabase.from('productos').upsert([{
+          id: prod.id,
+          sku: prod.sku,
+          barcode: prod.barcode,
+          nombre: prod.nombre,
+          categoria: prod.categoria,
+          precio_minorista: prod.precioMinorista,
+          fotos: prod.fotos,
+          variantes: prod.variantes
+        }]);
+      }
+    }
 
     const ticket = {
       folio: `AG-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -407,13 +379,13 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Inventario Sincronizado en Tiempo Real</p>
+            <p className="text-xs text-slate-400">Inventario Sincronizado en Supabase</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => { setInventario(cargarInventarioAdmin()); cargarClientesPOS(); }}
+            onClick={cargarDatosPOS}
             className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
           >
             🔄 Sincronizar Todo
@@ -534,7 +506,7 @@ function PosDashboardContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {inventario.length === 0 ? (
               <div className="col-span-full py-12 text-center text-slate-500 text-xs font-mono bg-slate-900 rounded-2xl border border-slate-800">
-                📦 No hay productos registrados en el administrador. Agrega piezas desde tu panel admin.
+                📦 No hay productos registrados. Agrega piezas desde tu panel admin.
               </div>
             ) : (
               inventario

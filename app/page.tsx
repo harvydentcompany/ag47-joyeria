@@ -21,9 +21,12 @@ export default function TiendaPublica() {
 
   const [misPedidos, setMisPedidos] = useState<any[]>([]);
 
-  // DATOS DE CONFIGURACIÓN INSTITUCIONAL Y LOGO EDITABLES DESDE EL ADMIN
+  // DATOS DE CONFIGURACIÓN INSTITUCIONAL, LOGO Y BANNER EDITABLES DESDE EL ADMIN
   const [infoAdmin, setInfoAdmin] = useState({
     logoUrl: '',
+    bannerUrl: '',
+    titulo: 'Distribuidor de Platería Fina',
+    subtitulo: 'Colección Plata Ley 925',
     direcciones: ['Ciudad de Guatemala'],
     telefonos: ['(+502) 5555-0101'],
     nosotrosTexto: 'Distribuidor de platería fina en plata ley 925.'
@@ -137,13 +140,16 @@ export default function TiendaPublica() {
         try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
       }
 
-      // Cargar configuración de marca, logo y textos guardados en el Admin
+      // Cargar configuración de marca, logo, banner y textos guardados en el Admin
       const configAdmin = localStorage.getItem('config_portada_ag47');
       if (configAdmin) {
         try {
           const parsed = JSON.parse(configAdmin);
           setInfoAdmin({
             logoUrl: parsed.logoUrl || '',
+            bannerUrl: parsed.bannerUrl || '',
+            titulo: parsed.titulo || 'Distribuidor de Platería Fina',
+            subtitulo: parsed.subtitulo || 'Colección Plata Ley 925',
             direcciones: parsed.direcciones || ['Ciudad de Guatemala'],
             telefonos: parsed.telefonos || ['(+502) 5555-0101'],
             nosotrosTexto: parsed.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
@@ -156,6 +162,9 @@ export default function TiendaPublica() {
         if (data && data.datos) {
           setInfoAdmin({
             logoUrl: data.datos.logoUrl || '',
+            bannerUrl: data.datos.bannerUrl || '',
+            titulo: data.datos.titulo || 'Distribuidor de Platería Fina',
+            subtitulo: data.datos.subtitulo || 'Colección Plata Ley 925',
             direcciones: data.datos.direcciones || ['Ciudad de Guatemala'],
             telefonos: data.datos.telefonos || ['(+502) 5555-0101'],
             nosotrosTexto: data.datos.nosotrosTexto || 'Distribuidor de platería fina en plata ley 925.'
@@ -585,14 +594,15 @@ export default function TiendaPublica() {
 
         {vistaActual === 'inicio' && (
           <>
+            {/* SECCIÓN HERO / BANNER PRINCIPAL DINÁMICO */}
             <section className="relative bg-[#f5efe6] text-zinc-900 overflow-hidden py-16 md:py-24 border-b border-[#e5d8c3]">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
                 <div className="max-w-xl space-y-6 text-center md:text-left">
                   <span className="inline-block px-3.5 py-1 bg-[#eadcc7] text-amber-900 text-xs font-semibold rounded-full border border-amber-300 uppercase tracking-widest">
-                    Colección Plata Ley 925
+                    {infoAdmin.subtitulo}
                   </span>
                   <h1 className="text-4xl sm:text-5xl font-serif font-light text-zinc-900 tracking-wide leading-tight">
-                    Distribuidor de <span className="font-semibold text-amber-700 italic">Platería Fina</span>
+                    {infoAdmin.titulo}
                   </h1>
                   <p className="text-zinc-600 text-sm font-light leading-relaxed">
                     {esMayorista 
@@ -611,8 +621,12 @@ export default function TiendaPublica() {
                 </div>
 
                 <div className="relative">
-                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl">
-                    <img src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800" alt="Joyería AG47" className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" />
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-full bg-white p-4 flex items-center justify-center border-2 border-amber-200/80 shadow-xl overflow-hidden">
+                    <img 
+                      src={infoAdmin.bannerUrl || 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=800'} 
+                      alt="Joyería AG47" 
+                      className="w-full h-full object-cover rounded-full shadow-inner border border-amber-100" 
+                    />
                   </div>
                 </div>
               </div>

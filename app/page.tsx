@@ -129,7 +129,7 @@ export default function TiendaPublica() {
     }
   ]);
 
-  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE Y SUPABASE (Admin <-> Tienda)
+  // FUNCIÓN PARA SINCRONIZAR AUTOMÁTICAMENTE DESDE LOCALSTORAGE Y SUPABASE (ADMIN -> TIENDA)
   const cargarDatosSincronizados = async () => {
     if (typeof window !== 'undefined') {
       const guardadosPedidos = localStorage.getItem('ag47_pedidos_admin');
@@ -137,7 +137,7 @@ export default function TiendaPublica() {
         try { setMisPedidos(JSON.parse(guardadosPedidos)); } catch(e) {}
       }
 
-      // Cargar configuración de marca, logo y textos
+      // Cargar configuración de marca, logo y textos guardados en el Admin
       const configAdmin = localStorage.getItem('config_portada_ag47');
       if (configAdmin) {
         try {
@@ -151,7 +151,6 @@ export default function TiendaPublica() {
         } catch(e) {}
       }
 
-      // Sincronizar directamente desde Supabase la tabla config_tienda por si acaso
       try {
         const { data } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
         if (data && data.datos) {
@@ -191,7 +190,6 @@ export default function TiendaPublica() {
     }
   };
 
-  // EFECTO DE CARGA INICIAL Y ESCUCHA DE EVENTOS EN TIEMPO REAL
   useEffect(() => {
     cargarDatosSincronizados();
 
@@ -241,7 +239,6 @@ export default function TiendaPublica() {
     return carrito.some(item => item.productoId === productoId);
   };
 
-  // CÁLCULO DE PRECIOS CONECTADO AL LOCALSTORAGE DEL ADMIN Y SUPABASE
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
@@ -533,9 +530,9 @@ export default function TiendaPublica() {
         <header className="bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#ebd9c1] shadow-xs">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
             
-            {/* LOGOTIPO DINÁMICO CONECTADO AL ADMIN Y SUPABASE */}
+            {/* LOGOTIPO DINÁMICO CONECTADO AL PANEL DE ADMINISTRACIÓN */}
             <div className="flex items-center space-x-3 cursor-pointer" onClick={() => { setVistaActual('inicio'); setCategoriaFiltro('Todas'); }}>
-              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0">
+              <div className="w-10 h-10 bg-[#f7f2e7] text-amber-700 font-serif font-black text-xl flex items-center justify-center rounded-lg border border-amber-300 overflow-hidden shrink-0 shadow-sm">
                 {infoAdmin.logoUrl ? (
                   <img src={infoAdmin.logoUrl} alt="Logo AG47" className="w-full h-full object-cover" />
                 ) : (

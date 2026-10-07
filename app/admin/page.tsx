@@ -486,42 +486,56 @@ function AdminDashboard() {
     }
   };
 
-  // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS"
-  const [portada, setPortada] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardado = localStorage.getItem('config_portada_ag47');
-      if (guardado) {
-        try { return JSON.parse(guardado); } catch(e) {}
-      }
-    }
-    return {
-      logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
-      titulo: 'Colección Mayorista y Minorista',
-      subtitulo: 'Especial de Temporada - Joyería en Plata 925',
-      bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
-      fuenteEstilo: 'font-sans',
-      colorWebPrincipal: '#f59e0b',
-      colorWebFondo: '#020617',
-      colorWebTexto: '#ffffff',
-      direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala', 'Centro Comercial Pradera Zona 4, Quetzaltenango'],
-      telefonos: ['+502 5555-1234', '+502 4444-5678'],
-      redesSociales: {
-        facebook: 'https://facebook.com/ag47joyeria',
-        instagram: 'https://instagram.com/ag47joyeria',
-        tiktok: 'https://tiktok.com/@ag47joyeria',
-        whatsapp: 'https://wa.me/50255551234'
-      },
-      nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
-    };
+  // 4. PORTADA, MARCA, ESTILOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" (SINCRONIZADO CON SUPABASE)
+  const [portada, setPortada] = useState({
+    logoUrl: 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+Logo',
+    titulo: 'Colección Mayorista y Minorista',
+    subtitulo: 'Especial de Temporada - Joyería en Plata 925',
+    bannerUrl: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1200',
+    fuenteEstilo: 'font-sans',
+    colorWebPrincipal: '#f59e0b',
+    colorWebFondo: '#020617',
+    colorWebTexto: '#ffffff',
+    direcciones: ['Zona 10, Edificio Las Margaritas, Ciudad de Guatemala', 'Centro Comercial Pradera Zona 4, Quetzaltenango'],
+    telefonos: ['+502 5555-1234', '+502 4444-5678'],
+    redesSociales: {
+      facebook: 'https://facebook.com/ag47joyeria',
+      instagram: 'https://instagram.com/ag47joyeria',
+      tiktok: 'https://tiktok.com/@ag47joyeria',
+      whatsapp: 'https://wa.me/50255551234'
+    },
+    nosotrosTexto: 'En AG47 nos especializamos en la fabricación, distribución al por mayor y detal de exclusiva joyería en Plata 925 con altos estándares de calidad, diseño y elegancia.'
   });
 
+  // CARGAR CONFIGURACIÓN DESDE SUPABASE AL INICIAR
   useEffect(() => {
-    localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
-  }, [portada]);
+    const cargarConfigSupabase = async () => {
+      const { data, error } = await supabase.from('config_tienda').select('*').eq('id', 1).single();
+      if (!error && data && data.datos) {
+        setPortada(data.datos);
+        localStorage.setItem('config_portada_ag47', JSON.stringify(data.datos));
+      } else {
+        const guardado = localStorage.getItem('config_portada_ag47');
+        if (guardado) {
+          try { setPortada(JSON.parse(guardado)); } catch(e) {}
+        }
+      }
+    };
+    cargarConfigSupabase();
+  }, []);
 
-  const guardarConfiguracionPortada = () => {
+  const guardarConfiguracionPortada = async () => {
+    const { error } = await supabase.from('config_tienda').upsert([
+      { id: 1, datos: portada }
+    ]);
+
+    if (error) {
+      alert('Error al guardar configuración en Supabase: ' + error.message);
+      return;
+    }
+
     localStorage.setItem('config_portada_ag47', JSON.stringify(portada));
-    alert('¡Configuración de marca, textos y estilos guardada con éxito y sincronizada con la web!');
+    alert('¡Configuración de marca, textos y estilos guardada en Supabase con éxito!');
   };
 
   // 5. PEDIDOS CON ESTADOS DE REVISIÓN SOLICITADOS
@@ -1678,7 +1692,7 @@ function AdminDashboard() {
         {/* MARCA, ESTILOS, TEXTOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" */}
         {seccion === 'portada' && (
           <div className="space-y-6 max-w-4xl text-xs">
-            <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos, Estilos, Direcciones, Teléfonos y Redes</h2>
+            <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos, Estilos, Direcciones, Teléfonos y Redes (Sincronizado Supabase)</h2>
             <p className="text-slate-400">Personaliza la apariencia, el contenido de la tienda y la información de contacto oficial.</p>
             
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
@@ -1841,7 +1855,7 @@ function AdminDashboard() {
               </div>
 
               <button onClick={guardarConfiguracionPortada} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl uppercase tracking-wider shadow transition">
-                💾 Guardar Configuración General de la Marca
+                💾 Guardar Configuración General de la Marca en Supabase
               </button>
 
             </div>

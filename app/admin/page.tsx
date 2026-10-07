@@ -222,6 +222,9 @@ function AdminDashboard() {
   const [modalGaleriaAbierto, setModalGaleriaAbierto] = useState(false);
   const [imagenesSeleccionadasTemp, setImagenesSeleccionadasTemp] = useState<string[]>([]);
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
+  
+  // ESTADO PARA SABER QUÉ CAMPO DE IMAGEN ESTAMOS SELECCIONANDO EN LA PORTADA ('logo' o 'banner')
+  const [tipoSeleccionPortada, setTipoSeleccionPortada] = useState<'logo' | 'banner' | null>(null);
 
   // 1. VENDEDORES / TRABAJADORES CON MÉTRICAS MENSUALES COMPLETAS
   const [vendedores, setVendedores] = useState(() => {
@@ -471,11 +474,13 @@ function AdminDashboard() {
         setGaleriaDrive(galeriaActualizada);
         localStorage.setItem('ag47_galeria_drive', JSON.stringify(galeriaActualizada));
 
-        // Auto-añadir la foto recién subida al producto actual
-        setNuevoProd({
-          ...nuevoProd,
-          fotos: [...nuevoProd.fotos, urlData.publicUrl]
-        });
+        // Auto-añadir la foto recién subida al producto actual (si aplica)
+        if (tipoSeleccionPortada === null) {
+          setNuevoProd({
+            ...nuevoProd,
+            fotos: [...nuevoProd.fotos, urlData.publicUrl]
+          });
+        }
 
         alert('¡Imagen subida a Supabase y añadida a tu galería!');
       }
@@ -1620,7 +1625,11 @@ function AdminDashboard() {
                 <label className="block font-bold text-amber-400 uppercase text-[11px]">Multimedia *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div 
-                    onClick={() => { setImagenesSeleccionadasTemp(nuevoProd.fotos); setModalGaleriaAbierto(true); }}
+                    onClick={() => { 
+                      setTipoSeleccionPortada(null); 
+                      setImagenesSeleccionadasTemp(nuevoProd.fotos); 
+                      setModalGaleriaAbierto(true); 
+                    }}
                     className="py-4 px-3 border-2 border-dashed border-amber-500/40 bg-slate-950 hover:bg-slate-900 rounded-xl text-center flex flex-col items-center justify-center space-y-1 cursor-pointer transition"
                   >
                     <span className="font-bold text-amber-300 text-xs">📁 Seleccionar de Galería / Banco</span>
@@ -1724,17 +1733,67 @@ function AdminDashboard() {
                 </div>
               </div>
 
+              {/* SECCIÓN ACTUALIZADA CON EL SELECTOR DE GALERÍA PARA LOGO Y BANNER */}
               <div className="space-y-3">
-                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 URLs de Logo e Imagen de Banner</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">URL del Logo:</label>
-                    <input type="text" value={portada.logoUrl} onChange={(e) => setPortada({ ...portada, logoUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+                <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 Imágenes Institucionales (Logo y Banner)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* LOGO */}
+                  <div className="space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <label className="font-bold block text-slate-300">Logotipo de la Tienda:</label>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-14 h-14 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                        {portada.logoUrl ? (
+                          <img src={portada.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Sin logo</span>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input type="text" value={portada.logoUrl} onChange={(e) => setPortada({ ...portada, logoUrl: e.target.value })} className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono text-[11px]" placeholder="URL del logo" />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setTipoSeleccionPortada('logo');
+                            setImagenesSeleccionadasTemp(portada.logoUrl ? [portada.logoUrl] : []);
+                            setModalGaleriaAbierto(true);
+                          }}
+                          className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
+                        >
+                          📁 Seleccionar Logo desde Galería
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="font-bold block mb-1 text-slate-300">URL Imagen Banner:</label>
-                    <input type="text" value={portada.bannerUrl} onChange={(e) => setPortada({ ...portada, bannerUrl: e.target.value })} className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+
+                  {/* BANNER */}
+                  <div className="space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
+                    <label className="font-bold block text-slate-300">Imagen Principal de Banner (Hero):</label>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-14 h-14 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                        {portada.bannerUrl ? (
+                          <img src={portada.bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] text-slate-500">Sin banner</span>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input type="text" value={portada.bannerUrl} onChange={(e) => setPortada({ ...portada, bannerUrl: e.target.value })} className="w-full p-2 bg-slate-900 border border-slate-800 rounded text-amber-400 font-mono text-[11px]" placeholder="URL del banner" />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setTipoSeleccionPortada('banner');
+                            setImagenesSeleccionadasTemp(portada.bannerUrl ? [portada.bannerUrl] : []);
+                            setModalGaleriaAbierto(true);
+                          }}
+                          className="w-full bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold py-1.5 px-3 rounded text-[11px] transition"
+                        >
+                          📁 Seleccionar Banner desde Galería
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
                 </div>
               </div>
 
@@ -1871,10 +1930,14 @@ function AdminDashboard() {
             
             <div className="flex justify-between items-center border-b border-slate-800 pb-4">
               <div>
-                <h2 className="font-serif font-bold text-base text-amber-400">Seleccionar imágenes desde Google Drive</h2>
-                <p className="text-[11px] text-slate-400">Marca las casillas de verificación de las fotos que deseas asociar al producto.</p>
+                <h2 className="font-serif font-bold text-base text-amber-400">
+                  {tipoSeleccionPortada ? `Seleccionar ${tipoSeleccionPortada === 'logo' ? 'Logo' : 'Banner'} desde Galería` : 'Seleccionar imágenes desde Google Drive'}
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  {tipoSeleccionPortada ? 'Haz clic en la imagen que deseas asignar.' : 'Marca las casillas de verificación de las fotos que deseas asociar al producto.'}
+                </p>
               </div>
-              <button onClick={() => setModalGaleriaAbierto(false)} className="w-8 h-8 bg-slate-800 hover:bg-slate-700 rounded-full font-bold flex items-center justify-center text-white">✕</button>
+              <button onClick={() => { setModalGaleriaAbierto(false); setTipoSeleccionPortada(null); }} className="w-8 h-8 bg-slate-800 hover:bg-slate-700 rounded-full font-bold flex items-center justify-center text-white">✕</button>
             </div>
 
             <div className="flex justify-between items-center gap-4">
@@ -1897,10 +1960,16 @@ function AdminDashboard() {
                     <div 
                       key={img.id}
                       onClick={() => {
-                        if (estaMarcada) {
-                          setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter((u: string) => u !== img.url));
+                        if (tipoSeleccionPortada) {
+                          // Selección única para Logo o Banner
+                          setImagenesSeleccionadasTemp([img.url]);
                         } else {
-                          setImagenesSeleccionadasTemp([...imagenesSeleccionadasTemp, img.url]);
+                          // Selección múltiple para Productos
+                          if (estaMarcada) {
+                            setImagenesSeleccionadasTemp(imagenesSeleccionadasTemp.filter((u: string) => u !== img.url));
+                          } else {
+                            setImagenesSeleccionadasTemp([...imagenesSeleccionadasTemp, img.url]);
+                          }
                         }
                       }}
                       className={`relative aspect-square rounded-xl border-2 overflow-hidden cursor-pointer transition flex flex-col justify-end p-2 ${
@@ -1922,15 +1991,22 @@ function AdminDashboard() {
             </div>
 
             <div className="border-t border-slate-800 pt-4 flex justify-end gap-3">
-              <button onClick={() => setModalGaleriaAbierto(false)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold uppercase">Cancelar</button>
+              <button onClick={() => { setModalGaleriaAbierto(false); setTipoSeleccionPortada(null); }} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold uppercase">Cancelar</button>
               <button 
                 onClick={() => {
-                  setNuevoProd({...nuevoProd, fotos: imagenesSeleccionadasTemp});
+                  if (tipoSeleccionPortada === 'logo') {
+                    setPortada({ ...portada, logoUrl: imagenesSeleccionadasTemp[0] || portada.logoUrl });
+                  } else if (tipoSeleccionPortada === 'banner') {
+                    setPortada({ ...portada, bannerUrl: imagenesSeleccionadasTemp[0] || portada.bannerUrl });
+                  } else {
+                    setNuevoProd({...nuevoProd, fotos: imagenesSeleccionadasTemp});
+                  }
                   setModalGaleriaAbierto(false);
+                  setTipoSeleccionPortada(null);
                 }} 
                 className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded font-bold uppercase tracking-wider shadow"
               >
-                Insertar Seleccionadas ({imagenesSeleccionadasTemp.length})
+                {tipoSeleccionPortada ? 'Asignar Imagen' : `Insertar Seleccionadas (${imagenesSeleccionadasTemp.length})`}
               </button>
             </div>
 

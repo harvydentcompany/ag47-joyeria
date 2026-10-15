@@ -1634,7 +1634,7 @@ function AdminDashboard() {
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
 
-              {/* NUEVA SECCIÓN: TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) */}
+              {/* TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <label className="block font-bold text-amber-400 uppercase text-[11px]">Modalidad de Precio Mayorista *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1711,29 +1711,25 @@ function AdminDashboard() {
 
               <div className="space-y-2 border-t border-slate-800 pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-amber-400 uppercase text-[11px]">
-                    {nuevoProd.tipoPrecioMayorista === 'pieza' ? 'Medidas y Stock (Opcionales):' : 'Medidas y Stock:'}
-                  </span>
+                  <span className="font-bold text-amber-400 uppercase text-[11px]">Medidas y Stock:</span>
                   <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar</button>
                 </div>
                 {nuevoProd.variantes.map((v, idx) => (
                   <div key={idx} className="grid grid-cols-3 gap-2 bg-slate-950 p-2 rounded border border-slate-800">
                     <input 
                       type="text" 
-                      placeholder="Medida" 
+                      placeholder="Medida (Opcional)" 
                       value={v.medida} 
                       onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} 
                       className="p-1.5 bg-slate-900 rounded text-white" 
-                      required={nuevoProd.tipoPrecioMayorista === 'gramo'} 
                     />
                     <input 
                       type="number" 
                       step="0.1" 
-                      placeholder="Peso (g)" 
+                      placeholder="Peso (g) (Opcional)" 
                       value={v.peso || ''} 
                       onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} 
                       className="p-1.5 bg-slate-900 rounded text-white" 
-                      required={nuevoProd.tipoPrecioMayorista === 'gramo'} 
                     />
                     <input 
                       type="number" 

@@ -833,7 +833,6 @@ function AdminDashboard() {
       return alert('Por favor selecciona o sube al menos una imagen.');
     }
 
-    // Validación: Si eligió precio por pieza, debe indicar el precio pieza mayorista. Si eligió gramo, se omite.
     if (nuevoProd.tipoPrecioMayorista === 'pieza' && (!nuevoProd.precioPiezaMayorista || nuevoProd.precioPiezaMayorista <= 0)) {
       return alert('Por favor ingresa un precio de pieza mayorista válido.');
     }
@@ -1712,14 +1711,38 @@ function AdminDashboard() {
 
               <div className="space-y-2 border-t border-slate-800 pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-amber-400 uppercase text-[11px]">Medidas y Stock:</span>
+                  <span className="font-bold text-amber-400 uppercase text-[11px]">
+                    {nuevoProd.tipoPrecioMayorista === 'pieza' ? 'Medidas y Stock (Opcionales):' : 'Medidas y Stock:'}
+                  </span>
                   <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar</button>
                 </div>
                 {nuevoProd.variantes.map((v, idx) => (
                   <div key={idx} className="grid grid-cols-3 gap-2 bg-slate-950 p-2 rounded border border-slate-800">
-                    <input type="text" placeholder="Medida" value={v.medida} onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} className="p-1.5 bg-slate-900 rounded text-white" required />
-                    <input type="number" step="0.1" placeholder="Peso (g)" value={v.peso || ''} onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} className="p-1.5 bg-slate-900 rounded text-white" required />
-                    <input type="number" placeholder="Stock" value={v.stock || ''} onChange={(e) => actualizarVarianteForm(idx, 'stock', Number(e.target.value))} className="p-1.5 bg-slate-900 rounded text-white" required />
+                    <input 
+                      type="text" 
+                      placeholder="Medida" 
+                      value={v.medida} 
+                      onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} 
+                      className="p-1.5 bg-slate-900 rounded text-white" 
+                      required={nuevoProd.tipoPrecioMayorista === 'gramo'} 
+                    />
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      placeholder="Peso (g)" 
+                      value={v.peso || ''} 
+                      onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} 
+                      className="p-1.5 bg-slate-900 rounded text-white" 
+                      required={nuevoProd.tipoPrecioMayorista === 'gramo'} 
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="Stock" 
+                      value={v.stock || ''} 
+                      onChange={(e) => actualizarVarianteForm(idx, 'stock', Number(e.target.value))} 
+                      className="p-1.5 bg-slate-900 rounded text-white" 
+                      required 
+                    />
                   </div>
                 ))}
               </div>
@@ -1744,7 +1767,7 @@ function AdminDashboard() {
                           </span>
                         </div>
                         <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
-                        <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q${p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
+                        <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q{p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">

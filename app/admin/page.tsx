@@ -1634,24 +1634,30 @@ function AdminDashboard() {
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
 
-              {/* TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) */}
+              {/* TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) - CORREGIDO Y VISIBLE */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <label className="block font-bold text-amber-400 uppercase text-[11px]">Modalidad de Precio Mayorista *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <label className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'gramo' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}>
+                  <div 
+                    onClick={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'gramo' })}
+                    className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'gramo' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}
+                  >
                     <input 
                       type="radio" 
                       name="tipoPrecioMay" 
                       checked={nuevoProd.tipoPrecioMayorista === 'gramo'} 
-                      onChange={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0 })} 
+                      onChange={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'gramo' })} 
                     />
                     <div>
                       <span className="font-bold text-white block">Calcular por Gramo</span>
                       <span className="text-[10px] text-slate-400">Se calcula multiplicando el peso por la tarifa del cliente.</span>
                     </div>
-                  </label>
+                  </div>
 
-                  <label className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'pieza' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}>
+                  <div 
+                    onClick={() => setNuevoProd({ ...nuevoProd, tipoPrecioMayorista: 'pieza' })}
+                    className={`p-3 rounded-lg border cursor-pointer flex items-center space-x-3 transition ${nuevoProd.tipoPrecioMayorista === 'pieza' ? 'border-amber-500 bg-amber-500/10' : 'border-slate-800 bg-slate-900'}`}
+                  >
                     <input 
                       type="radio" 
                       name="tipoPrecioMay" 
@@ -1662,7 +1668,7 @@ function AdminDashboard() {
                       <span className="font-bold text-white block">Precio Fijo por Pieza</span>
                       <span className="text-[10px] text-slate-400">Se cobra un monto fijo al mayoreo sin importar el gramaje.</span>
                     </div>
-                  </label>
+                  </div>
                 </div>
 
                 {nuevoProd.tipoPrecioMayorista === 'pieza' && (

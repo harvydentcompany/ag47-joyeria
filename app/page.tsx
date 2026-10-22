@@ -632,11 +632,13 @@ export default function TiendaPublica() {
                     <span className="text-xs font-mono uppercase text-amber-800 font-bold">Colección Reciente</span>
                     <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Nuevos Ingresos</h2>
                   </div>
-                  <button onClick={() => { setVistaActual('catalogo'); setCategoriaFiltro('Todas'); }} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver Todo el Catálogo →</button>
+                  {/* MODIFICADO: Al presionar redirige a categorías como solicitaste */}
+                  <button onClick={() => setVistaActual('categorias')} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver más →</button>
                 </div>
 
+                {/* MODIFICADO: Se usa .slice(0, 4) para mostrar únicamente 4 productos recientes */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                  {productos.map((prod) => {
+                  {productos.slice(0, 4).map((prod) => {
                     const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes?.[0]);
                     const pesoBase = prod.variantes?.[0]?.peso || 0;
                     

@@ -77,13 +77,13 @@ const clienteMinoristaBase = {
   telefono: '50200000000',
   tipo: 'b2c',
   tarifaGramo: 35,
+  precios_gramo: {},
   tieneCredito: false,
   limiteCredito: 0,
   saldoDeuda: 0,
   diasCredito: 0
 };
 
-// Trabajadores por defecto para el POS (puedes personalizarlos)
 const trabajadoresDefault = [
   { id: 't1', nombre: 'Carlos Vendedor' },
   { id: 't2', nombre: 'Ana Ramírez' },
@@ -96,33 +96,31 @@ function PosDashboardContent() {
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // CARGADOR DESDE SUPABASE Y LOCALSTORAGE
   const [inventario, setInventario] = useState<any[]>([]);
   const [listaClientes, setListaClientes] = useState<any[]>([clienteMinoristaBase]);
   
-  // ESTADOS NUEVOS: TRABAJADOR Y HISTORIAL POS
-  const [trabajadores, setTrabajadores] = useState<any[]>(trabajadoresDefault);
+  const [trabajadores] = useState<any[]>(trabajadoresDefault);
   const [vendedorActivo, setVendedorActivo] = useState<string>('Carlos Vendedor');
   const [mostrarHistorialPOS, setMostrarHistorialPOS] = useState(false);
   const [historialVentasPOS, setHistorialVentasPOS] = useState<any[]>([]);
 
   const cargarDatosPOS = async () => {
-    // 1. Cargar Historial de ventas POS local/Supabase
     const historialLocal = localStorage.getItem('ag47_historial_pos');
     if (historialLocal) {
       try { setHistorialVentasPOS(JSON.parse(historialLocal)); } catch(e) {}
     }
 
-    // 2. Cargar Inventario desde Supabase o LocalStorage del Admin
     const { data: dataProd, error: errProd } = await supabase.from('productos').select('*');
     if (!errProd && dataProd && dataProd.length > 0) {
       const mapeados = dataProd.map((p: any) => ({
         id: p.id,
-        sku: p.sku,
+        sku: p.sku || p.codigo || 'SKU-000',
         barcode: p.barcode,
         nombre: p.nombre,
         categoria: p.categoria,
         precioMinorista: Number(p.precio_minorista || 0),
+        tipo_precio_mayorista: p.tipo_precio_mayorista || 'gramo',
+        precio_pieza_mayorista: Number(p.precio_pieza_mayorista || 0),
         fotos: p.fotos || [],
         variantes: p.variantes || []
       }));
@@ -137,7 +135,6 @@ function PosDashboardContent() {
       }
     }
 
-    // 3. Cargar Clientes desde Supabase
     const { data: dataCli, error: errCli } = await supabase.from('mayoristas').select('*');
     if (!errCli && dataCli && dataCli.length > 0) {
       const mayoristasMapeados = dataCli.map((item: any) => ({
@@ -145,6 +142,7 @@ function PosDashboardContent() {
         nombre: item.nombre || 'Sin nombre',
         telefono: item.telefono || '50200000000',
         tipo: 'b2b',
+        precios_gramo: item.precios_gramo || item.preciosGramoPorCategoria || {},
         tarifaGramo: Number(item.precios_gramo?.Anillos || 36),
         tieneCredito: Boolean(item.tiene_credito),
         limiteCredito: Number(item.limite_credito || 0),
@@ -175,6 +173,38 @@ function PosDashboardContent() {
     inputEscanerRef.current?.focus();
   }, []);
 
+  // FUNCIÓN PARA CALCULAR EL PRECIO AUTOMÁTICO SEGÚN EL CLIENTE SELECCIONADO
+  const calcularPrecioUnitario = (prod: any, variante: any) => {
+    if (clienteSeleccionado.tipo === 'b2b') {
+      if (prod.tipo_precio_mayorista === 'pieza') {
+        return Number(prod.precio_pieza_mayorista || 0);
+      }
+      const tarifasGramo = clienteSeleccionado.precios_gramo || {};
+      const tarifaGramo = tarifasGramo[prod.categoria] || 36;
+      const pesoUnitario = variante?.peso || 1;
+      return Number((pesoUnitario * tarifaGramo).toFixed(2));
+    }
+    return Number(prod.precioMinorista || 0);
+  };
+
+  // EFECTO PARA RECALCULAR AUTOMÁTICAMENTE EL CARRITO SI CAMBIA EL CLIENTE
+  useEffect(() => {
+    if (carrito.length > 0) {
+      setCarrito(prevCarrito => prevCarrito.map(item => {
+        const prodOriginal = inventario.find(p => p.id === item.productoId);
+        if (!prodOriginal) return item;
+        const varianteOriginal = prodOriginal.variantes?.find((v: any) => v.medida === item.medida) || prodOriginal.variantes?.[0];
+        
+        const nuevoPrecio = calcularPrecioUnitario(prodOriginal, varianteOriginal);
+        return {
+          ...item,
+          precioCalculado: nuevoPrecio,
+          subtotal: item.cantidad * nuevoPrecio
+        };
+      }));
+    }
+  }, [clienteSeleccionado]);
+
   const clientesFiltrados = listaClientes.filter(c => 
     c.nombre.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
     c.telefono.includes(busquedaCliente)
@@ -188,9 +218,7 @@ function PosDashboardContent() {
       return;
     }
 
-    const precioUnitario = clienteSeleccionado.tipo === 'b2b' 
-      ? variante.peso * (clienteSeleccionado.tarifaGramo || 36) 
-      : prod.precioMinorista;
+    const precioUnitario = calcularPrecioUnitario(prod, variante);
 
     const itemIdUnico = `${prod.id}-${variante.medida}`;
     const existeIndex = carrito.findIndex(item => item.itemIdUnico === itemIdUnico);
@@ -312,7 +340,6 @@ function PosDashboardContent() {
     setInventario(nuevoInventario);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
 
-    // Actualizar stock en Supabase para cada producto vendido de forma sincronizada
     for (const prod of nuevoInventario) {
       const itemsDelProd = carrito.filter(c => c.productoId === prod.id);
       if (itemsDelProd.length > 0) {
@@ -323,6 +350,8 @@ function PosDashboardContent() {
           nombre: prod.nombre,
           categoria: prod.categoria,
           precio_minorista: prod.precioMinorista,
+          tipo_precio_mayorista: prod.tipo_precio_mayorista,
+          precio_pieza_mayorista: prod.precio_pieza_mayorista,
           fotos: prod.fotos,
           variantes: prod.variantes
         }]);
@@ -344,7 +373,6 @@ function PosDashboardContent() {
       diasPlazoCredito: clienteSeleccionado.diasCredito
     };
 
-    // Guardar en Historial POS local y sincronizado
     const nuevoHistorial = [ticket, ...historialVentasPOS];
     setHistorialVentasPOS(nuevoHistorial);
     localStorage.setItem('ag47_historial_pos', JSON.stringify(nuevoHistorial));
@@ -370,7 +398,7 @@ function PosDashboardContent() {
     });
 
     mensaje += `\n*Peso Total Metal:* ${ticketEmitido.totalGramos.toFixed(1)}g\n`;
-    mensaje += `*TOTAL PAGADO:* Q${ticketEmitido.totalPagar.toFixed(2)}\n\n`;
+    mensaje += `*TOTAL PAGADO:* Q{ticketEmitido.totalPagar.toFixed(2)}\n\n`;
     mensaje += `¡Gracias por tu compra! ✨`;
 
     const url = `https://wa.me/${ticketEmitido.telefonoCliente}?text=${encodeURIComponent(mensaje)}`;
@@ -496,7 +524,7 @@ function PosDashboardContent() {
                   <span className="text-[10px] text-slate-400 uppercase block font-mono">Cliente Seleccionado ({listaClientes.length} cargados):</span>
                   <span className="text-white font-bold">{clienteSeleccionado.nombre}</span>
                   {clienteSeleccionado.tipo === 'b2b' && (
-                    <span className="text-amber-400 font-mono text-[10px] ml-1.5">(Q{clienteSeleccionado.tarifaGramo}/g)</span>
+                    <span className="text-amber-400 font-mono text-[10px] ml-1.5">(Mayorista Activo)</span>
                   )}
                 </div>
                 <span className="text-slate-400 text-xs ml-2">{mostrarDropdownCliente ? '▲' : '▼'}</span>
@@ -536,7 +564,7 @@ function PosDashboardContent() {
                           </div>
                           {c.tipo === 'b2b' && (
                             <span className="text-[10px] font-mono bg-slate-950/40 px-2 py-0.5 rounded text-amber-300">
-                              Q{c.tarifaGramo}/g
+                              Mayoreo
                             </span>
                           )}
                         </div>

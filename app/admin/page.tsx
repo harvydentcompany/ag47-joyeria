@@ -246,22 +246,60 @@ function AdminDashboard() {
   const [filtroGaleriaDrive, setFiltroGaleriaDrive] = useState('');
   const [tipoSeleccionPortada, setTipoSeleccionPortada] = useState<'logo' | 'banner' | null>(null);
 
-  const [vendedores, setVendedores] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const guardados = localStorage.getItem('ag47_vendedores_admin');
-      if (guardados) {
-        try { return JSON.parse(guardados); } catch(e) {}
-      }
-    }
-    return [
-      { id: 1, nombre: 'Marta Gómez', telefono: '4444-0101', usuario: 'marta', password: 'marta2026', ventasRealizadas: 14, totalVendido: 12450, totalGramos: 342.5, totalPiezas: 42, clientesAtendidos: 18, clientesNuevos: 5 },
-      { id: 2, nombre: 'Juan Pérez', telefono: '4444-0202', usuario: 'juan', password: 'juan2026', ventasRealizadas: 8, totalVendido: 7800, totalGramos: 210.0, totalPiezas: 24, clientesAtendidos: 11, clientesNuevos: 3 },
-    ];
-  });
+  // VENDEDORES SINCRONIZADOS CON SUPABASE
+  const [vendedores, setVendedores] = useState<any[]>([
+    { id: 1, nombre: 'Marta Gómez', telefono: '4444-0101', usuario: 'marta', password: 'marta2026', ventasRealizadas: 14, totalVendido: 12450, totalGramos: 342.5, totalPiezas: 42, clientesAtendidos: 18, clientesNuevos: 5 },
+    { id: 2, nombre: 'Juan Pérez', telefono: '4444-0202', usuario: 'juan', password: 'juan2026', ventasRealizadas: 8, totalVendido: 7800, totalGramos: 210.0, totalPiezas: 24, clientesAtendidos: 11, clientesNuevos: 3 },
+  ]);
 
   useEffect(() => {
-    localStorage.setItem('ag47_vendedores_admin', JSON.stringify(vendedores));
-  }, [vendedores]);
+    const cargarVendedoresSupabase = async () => {
+      const { data, error } = await supabase.from('trabajadores').select('*');
+      if (!error && data && data.length > 0) {
+        const mapeados = data.map((v: any) => ({
+          id: v.id,
+          nombre: v.nombre,
+          telefono: v.telefono || '',
+          usuario: v.usuario,
+          password: v.password,
+          ventasRealizadas: Number(v.ventas_realizadas || 0),
+          totalVendido: Number(v.total_vendido || 0),
+          totalGramos: Number(v.total_gramos || 0),
+          totalPiezas: Number(v.total_piezas || 0),
+          clientesAtendidos: Number(v.clientes_atendidos || 0),
+          clientesNuevos: Number(v.clientes_nuevos || 0)
+        }));
+        setVendedores(mapeados);
+        localStorage.setItem('ag47_vendedores_admin', JSON.stringify(mapeados));
+      } else {
+        const guardados = localStorage.getItem('ag47_vendedores_admin');
+        if (guardados) {
+          try { setVendedores(JSON.parse(guardados)); } catch(e) {}
+        }
+      }
+    };
+    cargarVendedoresSupabase();
+  }, []);
+
+  const guardarVendedorEnSupabase = async (vend: any) => {
+    const { error } = await supabase.from('trabajadores').upsert([{
+      id: vend.id,
+      nombre: vend.nombre,
+      telefono: vend.telefono,
+      usuario: vend.usuario,
+      password: vend.password,
+      ventas_realizadas: vend.ventasRealizadas,
+      total_vendido: vend.totalVendido,
+      total_gramos: vend.totalGramos,
+      total_piezas: vend.totalPiezas,
+      clientes_atendidos: vend.clientesAtendidos,
+      clientes_nuevos: vend.clientesNuevos
+    }]);
+
+    if (error) {
+      console.error('Error al guardar trabajador en Supabase:', error);
+    }
+  };
 
   const [nuevoVendedor, setNuevoVendedor] = useState({ 
     nombre: '', 
@@ -360,7 +398,7 @@ function AdminDashboard() {
           tieneCredito: item.tiene_credito || false,
           limiteCredito: item.limite_credito || 0,
           diasCredito: item.dias_credito || 15,
-          saldoDeuda: 0,
+          saldoDeuda: Number(item.saldo_deuda || 0),
           preciosGramoPorCategoria: item.precios_gramo || { Pulseras: 36, Anillos: 36, Cadenas: 36, Aretes: 36, Gargantillas: 36, Dijes: 36 }
         }));
         setMayoristas(prev => {
@@ -388,6 +426,7 @@ function AdminDashboard() {
           tiene_credito: clienteActualizado.tieneCredito,
           limite_credito: clienteActualizado.limiteCredito,
           dias_credito: clienteActualizado.diasCredito,
+          saldo_deuda: clienteActualizado.saldoDeuda || 0,
           precios_gramo: clienteActualizado.preciosGramoPorCategoria
         }
       ]);
@@ -397,6 +436,19 @@ function AdminDashboard() {
       alert('Error al guardar en Supabase: ' + error.message);
     } else {
       alert(`¡Cambios guardados y sincronizados para ${clienteActualizado.nombre}!`);
+    }
+  };
+
+  // FUNCIÓN NUEVA: ELIMINAR CLIENTE DE SUPABASE
+  const eliminarClienteSupabase = async (id: number, nombreCliente: string) => {
+    if (confirm(`¿Estás seguro de eliminar al cliente "${nombreCliente}" de la base de datos y Supabase?`)) {
+      const { error } = await supabase.from('mayoristas').delete().eq('id', id);
+      if (error) {
+        alert('Error al eliminar cliente en Supabase: ' + error.message);
+        return;
+      }
+      setMayoristas(mayoristas.filter(m => m.id !== id));
+      alert('Cliente eliminado correctamente de la base de datos.');
     }
   };
 
@@ -427,7 +479,7 @@ function AdminDashboard() {
           nombre: p.nombre,
           categoria: p.categoria,
           precioMinorista: Number(p.precio_minorista || 0),
-          tipoPrecioMayorista: p.tipo_precio_mayorista || 'gramo', // 'gramo' o 'pieza'
+          tipoPrecioMayorista: p.tipo_precio_mayorista || 'gramo',
           precioPiezaMayorista: Number(p.precio_pieza_mayorista || 0),
           fotos: p.fotos || [],
           variantes: p.variantes || []
@@ -658,36 +710,51 @@ function AdminDashboard() {
     document.body.removeChild(link);
   };
 
-  const agregarVendedor = (e: React.FormEvent) => {
+  const agregarVendedor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevoVendedor.nombre || !nuevoVendedor.usuario || !nuevoVendedor.password) {
       return alert('Completa el nombre, usuario y contraseña del trabajador.');
     }
-    setVendedores([
-      ...vendedores,
-      { 
-        ...nuevoVendedor, 
-        id: Date.now(), 
-        ventasRealizadas: Number(nuevoVendedor.ventasRealizadas || 0), 
-        totalVendido: Number(nuevoVendedor.totalVendido || 0),
-        totalGramos: Number(nuevoVendedor.totalGramos || 0),
-        totalPiezas: Number(nuevoVendedor.totalPiezas || 0),
-        clientesAtendidos: Number(nuevoVendedor.clientesAtendidos || 0),
-        clientesNuevos: Number(nuevoVendedor.clientesNuevos || 0)
-      }
-    ]);
+    const vendCreado = { 
+      ...nuevoVendedor, 
+      id: Date.now(), 
+      ventasRealizadas: Number(nuevoVendedor.ventasRealizadas || 0), 
+      totalVendido: Number(nuevoVendedor.totalVendido || 0),
+      totalGramos: Number(nuevoVendedor.totalGramos || 0),
+      totalPiezas: Number(nuevoVendedor.totalPiezas || 0),
+      clientesAtendidos: Number(nuevoVendedor.clientesAtendidos || 0),
+      clientesNuevos: Number(nuevoVendedor.clientesNuevos || 0)
+    };
+
+    const actualizados = [...vendedores, vendCreado];
+    setVendedores(actualizados);
+    localStorage.setItem('ag47_vendedores_admin', JSON.stringify(actualizados));
+    await guardarVendedorEnSupabase(vendCreado);
+
     setNuevoVendedor({ nombre: '', telefono: '', usuario: '', password: '', ventasRealizadas: 0, totalVendido: 0, totalGramos: 0, totalPiezas: 0, clientesAtendidos: 0, clientesNuevos: 0 });
-    alert('Trabajador registrado con éxito.');
+    alert('Trabajador registrado con éxito y guardado en Supabase.');
   };
 
-  const eliminarVendedor = (id: number) => {
+  const eliminarVendedor = async (id: number) => {
     if (confirm('¿Estás seguro de eliminar este perfil de trabajador?')) {
-      setVendedores(vendedores.filter(v => v.id !== id));
+      const { error } = await supabase.from('trabajadores').delete().eq('id', id);
+      if (error) {
+        console.error('Error al eliminar en Supabase:', error);
+      }
+      const actualizados = vendedores.filter(v => v.id !== id);
+      setVendedores(actualizados);
+      localStorage.setItem('ag47_vendedores_admin', JSON.stringify(actualizados));
     }
   };
 
-  const actualizarMetricaVendedor = (id: number, campo: string, valor: number) => {
-    setVendedores(vendedores.map(v => v.id === id ? { ...v, [campo]: Math.max(0, valor) } : v));
+  const actualizarMetricaVendedor = async (id: number, campo: string, valor: number) => {
+    const actualizados = vendedores.map(v => v.id === id ? { ...v, [campo]: Math.max(0, valor) } : v);
+    setVendedores(actualizados);
+    localStorage.setItem('ag47_vendedores_admin', JSON.stringify(actualizados));
+    const vendModificado = actualizados.find(v => v.id === id);
+    if (vendModificado) {
+      await guardarVendedorEnSupabase(vendModificado);
+    }
   };
 
   const crearCupon = (e: React.FormEvent) => {
@@ -736,6 +803,7 @@ function AdminDashboard() {
         tiene_credito: nuevoCliente.tieneCredito,
         limite_credito: nuevoCliente.limiteCredito,
         dias_credito: nuevoCliente.diasCredito,
+        saldo_deuda: 0,
         precios_gramo: preciosBase
       }
     ]);
@@ -1242,7 +1310,7 @@ function AdminDashboard() {
           <div className="space-y-6 max-w-5xl">
             <div>
               <h2 className="text-xl font-bold font-serif text-amber-400">Clientes Mayoristas & Cuentas Por Cobrar</h2>
-              <p className="text-xs text-slate-400">Edita tarifas, créditos, credenciales y guarda los cambios directamente en Supabase.</p>
+              <p className="text-xs text-slate-400">Edita tarifas, créditos, credenciales, elimina clientes de la BD y controla el crédito en uso.</p>
             </div>
 
             <form onSubmit={agregarCliente} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3 text-xs">
@@ -1270,6 +1338,11 @@ function AdminDashboard() {
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${m.estado === 'Autorizada' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-600/40' : 'bg-rose-600/20 text-rose-400 border border-rose-600/40'}`}>
                             {m.estado}
                           </span>
+                          {m.tieneCredito && (
+                            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded text-[10px] font-mono">
+                              Crédito en uso: Q{Number(m.saldoDeuda || 0).toFixed(2)} / Q{Number(m.limiteCredito || 0).toFixed(2)}
+                            </span>
+                          )}
                         </div>
                         <p className="text-slate-400 mt-0.5">Tel: {m.telefono} | Usuario: <strong className="text-amber-400">{m.usuario || 'N/A'}</strong></p>
                       </div>
@@ -1288,6 +1361,12 @@ function AdminDashboard() {
                           className={`px-3 py-1.5 rounded font-bold text-[10px] transition ${m.estado === 'Autorizada' ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
                         >
                           {m.estado === 'Autorizada' ? '🔴 Suspender Cuenta' : '🟢 Habilitar Cuenta'}
+                        </button>
+                        <button 
+                          onClick={() => eliminarClienteSupabase(m.id, m.nombre)}
+                          className="bg-rose-800 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded text-[10px] transition"
+                        >
+                          🗑️ Eliminar Cliente
                         </button>
                         <button 
                           onClick={() => setClienteDesplegadoId(estaDesplegado ? null : m.id)} 
@@ -1351,7 +1430,7 @@ function AdminDashboard() {
                         </div>
 
                         <div className="space-y-3 pt-2">
-                          <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">💳 Configuración de Crédito</h4>
+                          <h4 className="font-bold text-amber-400 uppercase text-[11px] border-b border-slate-800 pb-1">💳 Configuración de Crédito & Saldo en Uso</h4>
                           <div className="flex items-center space-x-3 bg-slate-900 p-3 rounded border border-slate-800">
                             <input 
                               type="checkbox" 
@@ -1363,9 +1442,9 @@ function AdminDashboard() {
                           </div>
 
                           {m.tieneCredito && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                               <div>
-                                <label className="block text-slate-400 mb-1">Límite de Crédito Autorizado (Q):</label>
+                                <label className="block text-slate-400 mb-1">Límite Autorizado (Q):</label>
                                 <input 
                                   type="number" 
                                   value={m.limiteCredito} 
@@ -1374,7 +1453,16 @@ function AdminDashboard() {
                                 />
                               </div>
                               <div>
-                                <label className="block text-slate-400 mb-1">Plazo de Días de Crédito:</label>
+                                <label className="block text-slate-400 mb-1">Saldo en Deuda / En Uso (Q):</label>
+                                <input 
+                                  type="number" 
+                                  value={m.saldoDeuda || 0} 
+                                  onChange={(e) => actualizarCreditoCliente(m.id, 'saldoDeuda', Number(e.target.value))}
+                                  className="w-full p-2 bg-slate-900 border border-amber-500/60 rounded text-amber-400 font-bold font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-slate-400 mb-1">Plazo de Días:</label>
                                 <input 
                                   type="number" 
                                   value={m.diasCredito} 
@@ -1425,8 +1513,8 @@ function AdminDashboard() {
           <div className="space-y-8 max-w-5xl">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold font-serif text-amber-400">Control de Trabajadores & Métricas Mensuales</h2>
-                <p className="text-xs text-slate-400">Registra trabajadores y supervisa las ventas cerradas, gramos, piezas, dinero facturado y nuevos clientes del mes.</p>
+                <h2 className="text-xl font-bold font-serif text-amber-400">Control de Trabajadores & Métricas en Supabase</h2>
+                <p className="text-xs text-slate-400">Registra y guarda trabajadores en Supabase para supervisar las ventas cerradas y métricas del mes.</p>
               </div>
               <span className="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1.5 rounded-lg font-bold text-xs">
                 📅 Periodo: Octubre 2026
@@ -1434,7 +1522,7 @@ function AdminDashboard() {
             </div>
 
             <form onSubmit={agregarVendedor} className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
-              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Nuevo Trabajador / Vendedor</h3>
+              <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">＋ Registrar Nuevo Trabajador / Vendedor en Supabase</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <input type="text" placeholder="Nombre completo" value={nuevoVendedor.nombre} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, nombre: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <input type="text" placeholder="Teléfono" value={nuevoVendedor.telefono} onChange={(e) => setNuevoVendedor({ ...nuevoVendedor, telefono: e.target.value })} className="p-2.5 bg-slate-950 border border-slate-800 rounded text-white" required />
@@ -1634,7 +1722,7 @@ function AdminDashboard() {
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
 
-              {/* TIPO DE PRECIO MAYORISTA (GRAMO O PRECIO PIEZA FIJO) - CORREGIDO Y VISIBLE */}
+              {/* TIPO DE PRECIO MAYORISTA */}
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
                 <label className="block font-bold text-amber-400 uppercase text-[11px]">Modalidad de Precio Mayorista *</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1783,7 +1871,7 @@ function AdminDashboard() {
           </div>
         )}
 
-        {/* MARCA, ESTILOS, TEXTOS, DIRECCIONES, TELÉFONOS, REDES Y "NOSOTROS" */}
+        {/* MARCA, ESTILOS, TEXTOS */}
         {seccion === 'portada' && (
           <div className="space-y-6 max-w-4xl text-xs">
             <h2 className="text-xl font-bold font-serif text-amber-400">Marca, Textos, Estilos, Direcciones, Teléfonos y Redes (Sincronizado Supabase)</h2>

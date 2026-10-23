@@ -83,18 +83,37 @@ const clienteMinoristaBase = {
   diasCredito: 0
 };
 
+// Trabajadores por defecto para el POS (puedes personalizarlos)
+const trabajadoresDefault = [
+  { id: 't1', nombre: 'Carlos Vendedor' },
+  { id: 't2', nombre: 'Ana Ramírez' },
+  { id: 't3', nombre: 'José Admin / Caja' }
+];
+
 function PosDashboardContent() {
   const router = useRouter();
   const inputEscanerRef = useRef<HTMLInputElement>(null);
 
   const logoEmpresaUrl = 'https://via.placeholder.com/150/000000/FFFFFF?text=AG47+LOGO';
 
-  // CARGADOR DESDE SUPABASE Y LOCALSTORAGE (SIN PRODUCTOS DE MUESTRA)
+  // CARGADOR DESDE SUPABASE Y LOCALSTORAGE
   const [inventario, setInventario] = useState<any[]>([]);
   const [listaClientes, setListaClientes] = useState<any[]>([clienteMinoristaBase]);
+  
+  // ESTADOS NUEVOS: TRABAJADOR Y HISTORIAL POS
+  const [trabajadores, setTrabajadores] = useState<any[]>(trabajadoresDefault);
+  const [vendedorActivo, setVendedorActivo] = useState<string>('Carlos Vendedor');
+  const [mostrarHistorialPOS, setMostrarHistorialPOS] = useState(false);
+  const [historialVentasPOS, setHistorialVentasPOS] = useState<any[]>([]);
 
   const cargarDatosPOS = async () => {
-    // 1. Cargar Inventario desde Supabase o LocalStorage del Admin
+    // 1. Cargar Historial de ventas POS local/Supabase
+    const historialLocal = localStorage.getItem('ag47_historial_pos');
+    if (historialLocal) {
+      try { setHistorialVentasPOS(JSON.parse(historialLocal)); } catch(e) {}
+    }
+
+    // 2. Cargar Inventario desde Supabase o LocalStorage del Admin
     const { data: dataProd, error: errProd } = await supabase.from('productos').select('*');
     if (!errProd && dataProd && dataProd.length > 0) {
       const mapeados = dataProd.map((p: any) => ({
@@ -109,7 +128,6 @@ function PosDashboardContent() {
       }));
       setInventario(mapeados);
     } else {
-      // Respaldo local de admin si no hay red
       const guardadosLocal = localStorage.getItem('ag47_inventario_admin');
       if (guardadosLocal) {
         try {
@@ -119,7 +137,7 @@ function PosDashboardContent() {
       }
     }
 
-    // 2. Cargar Clientes desde Supabase
+    // 3. Cargar Clientes desde Supabase
     const { data: dataCli, error: errCli } = await supabase.from('mayoristas').select('*');
     if (!errCli && dataCli && dataCli.length > 0) {
       const mayoristasMapeados = dataCli.map((item: any) => ({
@@ -294,7 +312,7 @@ function PosDashboardContent() {
     setInventario(nuevoInventario);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevoInventario));
 
-    // Actualizar stock en Supabase para cada producto vendido
+    // Actualizar stock en Supabase para cada producto vendido de forma sincronizada
     for (const prod of nuevoInventario) {
       const itemsDelProd = carrito.filter(c => c.productoId === prod.id);
       if (itemsDelProd.length > 0) {
@@ -314,6 +332,7 @@ function PosDashboardContent() {
     const ticket = {
       folio: `AG-${Math.floor(100000 + Math.random() * 900000)}`,
       fecha: new Date().toLocaleString(),
+      vendedor: vendedorActivo,
       cliente: clienteSeleccionado.nombre,
       telefonoCliente: clienteSeleccionado.telefono,
       items: carrito,
@@ -325,6 +344,11 @@ function PosDashboardContent() {
       diasPlazoCredito: clienteSeleccionado.diasCredito
     };
 
+    // Guardar en Historial POS local y sincronizado
+    const nuevoHistorial = [ticket, ...historialVentasPOS];
+    setHistorialVentasPOS(nuevoHistorial);
+    localStorage.setItem('ag47_historial_pos', JSON.stringify(nuevoHistorial));
+
     setTicketEmitido(ticket);
     setCarrito([]);
     setMontoPagaCon('');
@@ -335,6 +359,7 @@ function PosDashboardContent() {
 
     let mensaje = `*AG47 JOYERÍA - COMPROBANTE DE COMPRA*\n`;
     mensaje += `*Folio:* ${ticketEmitido.folio}\n`;
+    mensaje += `*Vendedor:* ${ticketEmitido.vendedor}\n`;
     mensaje += `*Fecha:* ${ticketEmitido.fecha}\n`;
     mensaje += `*Cliente:* ${ticketEmitido.cliente}\n`;
     mensaje += `*Forma de Pago:* ${ticketEmitido.metodoPago.toUpperCase()}\n\n`;
@@ -369,7 +394,7 @@ function PosDashboardContent() {
       `}</style>
 
       {/* ENCABEZADO */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex justify-between items-center no-imprimir">
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex flex-wrap justify-between items-center gap-4 no-imprimir">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 bg-amber-500 text-slate-950 font-serif font-black text-lg rounded-xl flex items-center justify-center">
             AG
@@ -379,11 +404,32 @@ function PosDashboardContent() {
               Terminal POS — Caja Chica Presencial
               <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase">En Línea</span>
             </h1>
-            <p className="text-xs text-slate-400">Inventario Sincronizado en Supabase</p>
+            <p className="text-xs text-slate-400">Inventario Sincronizado en Supabase y Admin</p>
           </div>
         </div>
 
+        {/* SELECTOR DE VENDEDOR ACTIVO Y BOTÓN HISTORIAL */}
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+            <span className="text-xs text-slate-400 font-mono">👤 Vendedor:</span>
+            <select 
+              value={vendedorActivo}
+              onChange={(e) => setVendedorActivo(e.target.value)}
+              className="bg-transparent text-xs font-bold text-amber-400 focus:outline-none cursor-pointer"
+            >
+              {trabajadores.map(t => (
+                <option key={t.id} value={t.nombre} className="bg-slate-900 text-white">{t.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <button 
+            onClick={() => setMostrarHistorialPOS(true)}
+            className="bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
+          >
+            📋 Historial POS ({historialVentasPOS.length})
+          </button>
+
           <button 
             onClick={cargarDatosPOS}
             className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs px-3 py-2 rounded-xl transition font-mono flex items-center gap-1"
@@ -664,6 +710,52 @@ function PosDashboardContent() {
 
       </div>
 
+      {/* MODAL HISTORIAL DE VENTAS POS */}
+      {mostrarHistorialPOS && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 max-w-2xl w-full p-6 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-white font-mono">📋 Historial de Ventas del POS</h2>
+                <p className="text-xs text-slate-400">Transacciones realizadas y guardadas en esta terminal</p>
+              </div>
+              <button 
+                onClick={() => setMostrarHistorialPOS(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-xs font-bold font-mono"
+              >
+                ✕ Cerrar
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {historialVentasPOS.length === 0 ? (
+                <div className="py-16 text-center text-slate-500 text-xs font-mono">
+                  No hay ventas registradas en el historial todavía.
+                </div>
+              ) : (
+                historialVentasPOS.map((v, i) => (
+                  <div key={i} className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-amber-400 font-mono text-xs">{v.folio}</span>
+                        <span className="text-slate-400 text-[10px]">({v.fecha})</span>
+                      </div>
+                      <p className="text-xs text-slate-200">Cliente: <strong className="text-white">{v.cliente}</strong></p>
+                      <p className="text-[10px] text-slate-400 font-mono">Vendedor: <span className="text-sky-400">{v.vendedor}</span> | Pago: <span className="uppercase text-emerald-400">{v.metodoPago}</span></p>
+                    </div>
+
+                    <div className="text-right flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
+                      <span className="text-sm font-black text-emerald-400 font-mono">Q{v.totalPagar.toFixed(2)}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">{v.items?.length || 0} artículo(s)</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL TICKET */}
       {ticketEmitido && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -672,6 +764,7 @@ function PosDashboardContent() {
               <img src={logoEmpresaUrl} alt="Logo" className="w-16 h-16 object-contain mx-auto mb-1" />
               <h2 className="text-base font-black font-serif tracking-widest text-slate-900">AG47 JOYERÍA</h2>
               <p className="text-[10px] text-slate-500">Folio: <span className="font-bold">{ticketEmitido.folio}</span></p>
+              <p className="text-[10px] text-slate-500">Atendió: <span className="font-bold">{ticketEmitido.vendedor}</span></p>
               <p className="text-[10px] text-slate-500">{ticketEmitido.fecha}</p>
             </div>
 

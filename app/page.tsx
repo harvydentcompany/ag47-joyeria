@@ -75,6 +75,8 @@ export default function TiendaPublica() {
           nombre: p.nombre,
           categoria: p.categoria,
           precioMinorista: Number(p.precio_minorista || p.precioMinorista || 0),
+          tipo_precio_mayorista: p.tipo_precio_mayorista || 'gramo',
+          precio_pieza_mayorista: Number(p.precio_pieza_mayorista || p.precioPiezaMayorista || 0),
           esNuevo: p.es_nuevo ?? p.esNuevo ?? true,
           material: p.material || 'Plata 925',
           descripcion: p.descripcion || '',
@@ -158,6 +160,9 @@ export default function TiendaPublica() {
 
   const obtenerPrecioCalculado = (producto: any, variante: any) => {
     if (esMayorista && clienteMayoristaActivo) {
+      if (producto.tipo_precio_mayorista === 'pieza') {
+        return Number(producto.precio_pieza_mayorista || 0);
+      }
       let preciosGramoFinal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
       const tarifaGramo = preciosGramoFinal[producto.categoria] || 36;
       const pesoUnitario = variante?.peso || producto.variantes[0]?.peso || 1;
@@ -632,11 +637,9 @@ export default function TiendaPublica() {
                     <span className="text-xs font-mono uppercase text-amber-800 font-bold">Colección Reciente</span>
                     <h2 className="text-2xl font-serif uppercase tracking-widest text-zinc-900 font-bold">Nuevos Ingresos</h2>
                   </div>
-                  {/* MODIFICADO: Al presionar redirige a categorías como solicitaste */}
                   <button onClick={() => setVistaActual('categorias')} className="text-amber-800 font-bold text-xs uppercase hover:underline">Ver más →</button>
                 </div>
 
-                {/* MODIFICADO: Se usa .slice(0, 4) para mostrar únicamente 4 productos recientes */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
                   {productos.slice(0, 4).map((prod) => {
                     const precioAMostrar = obtenerPrecioCalculado(prod, prod.variantes?.[0]);
@@ -646,6 +649,7 @@ export default function TiendaPublica() {
                     const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                     const stockTotal = calcularStockTotalProducto(prod);
                     const estaAgotadoTotal = stockTotal <= 0;
+                    const esPorPieza = prod.tipo_precio_mayorista === 'pieza';
 
                     return (
                       <div key={prod.id} className={`bg-[#fcfaf7] rounded-xl border overflow-hidden flex flex-col justify-between transition shadow-xs cursor-pointer relative ${estaAgotadoTotal ? 'opacity-75 border-zinc-300' : 'border-[#ebdcc2] hover:border-amber-500'}`} onClick={() => abrirModalDetalle(prod)}>
@@ -667,8 +671,14 @@ export default function TiendaPublica() {
                         <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
                           {esMayorista ? (
                             <div className="flex flex-col py-1">
-                              <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
-                              <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                              {esPorPieza ? (
+                                <span className="text-[10px] text-emerald-800 font-mono font-semibold">Precio Fijo por Pieza</span>
+                              ) : (
+                                <>
+                                  <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                                  <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                                </>
+                              )}
                               <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
                             </div>
                           ) : (
@@ -797,6 +807,7 @@ export default function TiendaPublica() {
                 const tarifaGramo = preciosGramoCliente[prod.categoria] || 36;
                 const stockTotal = calcularStockTotalProducto(prod);
                 const estaAgotadoTotal = stockTotal <= 0;
+                const esPorPieza = prod.tipo_precio_mayorista === 'pieza';
 
                 return (
                   <div key={prod.id} className={`bg-[#fcfaf7] rounded-xl border overflow-hidden flex flex-col justify-between transition shadow-xs cursor-pointer relative ${estaAgotadoTotal ? 'opacity-75 border-zinc-300' : 'border-[#ebdcc2] hover:border-amber-500'}`} onClick={() => abrirModalDetalle(prod)}>
@@ -818,8 +829,14 @@ export default function TiendaPublica() {
                     <div className="p-4 pt-0 flex items-center justify-between border-t border-[#f2e7d5] mt-2">
                       {esMayorista ? (
                         <div className="flex flex-col py-1">
-                          <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
-                          <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                          {esPorPieza ? (
+                            <span className="text-[10px] text-emerald-800 font-mono font-semibold">Precio Fijo por Pieza</span>
+                          ) : (
+                            <>
+                              <span className="text-[10px] text-zinc-500 font-mono">Peso: <strong>{pesoBase}g</strong></span>
+                              <span className="text-[10px] text-emerald-800 font-mono font-semibold">Q{tarifaGramo}/g</span>
+                            </>
+                          )}
                           <span className="font-bold text-sm text-amber-900">Total: Q{precioAMostrar.toFixed(2)}</span>
                         </div>
                       ) : (
@@ -1238,18 +1255,28 @@ export default function TiendaPublica() {
                 </div>
 
                 {esMayorista && clienteMayoristaActivo ? (() => {
+                  const esPorPiezaModal = productoSeleccionadoModal.tipo_precio_mayorista === 'pieza';
                   let preciosGramoModal = clienteMayoristaActivo.precios_gramo || clienteMayoristaActivo.preciosGramoPorCategoria || {};
                   const tarifaActualModal = preciosGramoModal[productoSeleccionadoModal.categoria] || 36;
                   return (
                     <div className="bg-[#fcfaf7] border border-amber-300/80 p-3.5 rounded-xl space-y-1">
-                      <div className="flex justify-between text-zinc-600">
-                        <span>Peso pieza:</span>
-                        <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
-                      </div>
-                      <div className="flex justify-between text-zinc-600">
-                        <span>Precio por gramo asignado:</span>
-                        <strong className="font-mono text-emerald-800">Q{tarifaActualModal.toFixed(2)} /g</strong>
-                      </div>
+                      {esPorPiezaModal ? (
+                        <div className="flex justify-between text-zinc-600">
+                          <span>Modalidad Mayoreo:</span>
+                          <strong className="font-mono text-amber-900">Precio Fijo por Pieza</strong>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-zinc-600">
+                            <span>Peso pieza:</span>
+                            <strong className="font-mono text-zinc-800">{varianteElegida?.peso || 0} g</strong>
+                          </div>
+                          <div className="flex justify-between text-zinc-600">
+                            <span>Precio por gramo asignado:</span>
+                            <strong className="font-mono text-emerald-800">Q{tarifaActualModal.toFixed(2)} /g</strong>
+                          </div>
+                        </>
+                      )}
                       <div className="border-t border-amber-200/60 pt-2 flex justify-between items-baseline">
                         <span className="font-bold text-zinc-700">Precio Total Pieza:</span>
                         <span className="font-serif font-bold text-2xl text-amber-900">

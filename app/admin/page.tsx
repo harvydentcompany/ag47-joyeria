@@ -439,7 +439,6 @@ function AdminDashboard() {
     }
   };
 
-  // FUNCIÓN NUEVA: ELIMINAR CLIENTE DE SUPABASE
   const eliminarClienteSupabase = async (id: number, nombreCliente: string) => {
     if (confirm(`¿Estás seguro de eliminar al cliente "${nombreCliente}" de la base de datos y Supabase?`)) {
       const { error } = await supabase.from('mayoristas').delete().eq('id', id);
@@ -464,6 +463,7 @@ function AdminDashboard() {
 
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
   const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos');
+  const [busquedaProducto, setBusquedaProducto] = useState(''); // Estado para el buscador de productos
   const [editandoProductoId, setEditandoProductoId] = useState<number | null>(null);
 
   const [productos, setProductos] = useState<any[]>([]);
@@ -1007,7 +1007,15 @@ function AdminDashboard() {
     const cumpleCat = categoriaSeleccionada === 'Todas' || p.categoria === categoriaSeleccionada;
     const estadoObj = obtenerEstadoStockProducto(p);
     const cumpleStock = filtroEstadoStock === 'Todos' || estadoObj.texto === filtroEstadoStock;
-    return cumpleCat && cumpleStock;
+    
+    // Filtro del buscador por nombre, SKU o código de barras
+    const textoBusqueda = busquedaProducto.toLowerCase().trim();
+    const cumpleBusqueda = !textoBusqueda || 
+      p.nombre.toLowerCase().includes(textoBusqueda) || 
+      p.sku.toLowerCase().includes(textoBusqueda) || 
+      (p.barcode && p.barcode.toLowerCase().includes(textoBusqueda));
+
+    return cumpleCat && cumpleStock && cumpleBusqueda;
   });
 
   const cambiarEstadoPedidoDirecto = (pedidoId: number, nuevoEstado: string) => {
@@ -1649,6 +1657,26 @@ function AdminDashboard() {
               </div>
             </div>
 
+            {/* BARRA DE BÚSQUEDA DE PRODUCTOS */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center space-x-3">
+              <span className="text-amber-400 text-sm font-bold">🔍</span>
+              <input 
+                type="text" 
+                placeholder="Buscar producto por nombre, SKU o código de barras..." 
+                value={busquedaProducto} 
+                onChange={(e) => setBusquedaProducto(e.target.value)} 
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+              />
+              {busquedaProducto && (
+                <button 
+                  onClick={() => setBusquedaProducto('')} 
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+
             {/* GESTIÓN DE CATEGORÍAS */}
             <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4 text-xs">
               <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">📂 Administración de Categorías del Catálogo (Sincronizado Supabase)</h3>
@@ -1856,7 +1884,7 @@ function AdminDashboard() {
                             {estadoStock.texto}
                           </span>
                         </div>
-                        <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span></p>
+                        <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span> {p.barcode ? `| Barcode: ${p.barcode}` : ''}</p>
                         <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q{p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
                       </div>
                     </div>

@@ -505,7 +505,7 @@ function AdminDashboard() {
     tipoPrecioMayorista: 'gramo' as 'gramo' | 'pieza',
     precioPiezaMayorista: 0,
     fotos: [] as string[],
-    variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }]
+    variantes: [{ medida: 'Talla 6', peso: 0, stock: 0, sku: '', barcode: '' }]
   });
 
   const manejarSubidaArchivoSupabaseStorage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -885,7 +885,7 @@ function AdminDashboard() {
   const agregarCampoVariante = () => {
     setNuevoProd({
       ...nuevoProd,
-      variantes: [...nuevoProd.variantes, { medida: '', peso: 0, stock: 0 }]
+      variantes: [...nuevoProd.variantes, { medida: '', peso: 0, stock: 0, sku: '', barcode: '' }]
     });
   };
 
@@ -961,7 +961,7 @@ function AdminDashboard() {
       tipoPrecioMayorista: 'gramo',
       precioPiezaMayorista: 0,
       fotos: [], 
-      variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] 
+      variantes: [{ medida: 'Talla 6', peso: 0, stock: 0, sku: '', barcode: '' }] 
     });
   };
 
@@ -1013,7 +1013,8 @@ function AdminDashboard() {
     const cumpleBusqueda = !textoBusqueda || 
       p.nombre.toLowerCase().includes(textoBusqueda) || 
       p.sku.toLowerCase().includes(textoBusqueda) || 
-      (p.barcode && p.barcode.toLowerCase().includes(textoBusqueda));
+      (p.barcode && p.barcode.toLowerCase().includes(textoBusqueda)) ||
+      (p.variantes && p.variantes.some((v: any) => (v.sku && v.sku.toLowerCase().includes(textoBusqueda)) || (v.barcode && v.barcode.toLowerCase().includes(textoBusqueda))));
 
     return cumpleCat && cumpleStock && cumpleBusqueda;
   });
@@ -1731,7 +1732,7 @@ function AdminDashboard() {
                     type="button" 
                     onClick={() => {
                       setEditandoProductoId(null);
-                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0 }] });
+                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0, sku: '', barcode: '' }] });
                     }} 
                     className="text-rose-400 font-bold hover:underline"
                   >
@@ -1741,8 +1742,8 @@ function AdminDashboard() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input type="text" placeholder="SKU" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
-                <input type="text" placeholder="Código de Barras" value={nuevoProd.barcode} onChange={(e) => setNuevoProd({ ...nuevoProd, barcode: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
+                <input type="text" placeholder="SKU General" value={nuevoProd.sku} onChange={(e) => setNuevoProd({ ...nuevoProd, sku: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
+                <input type="text" placeholder="Código de Barras General" value={nuevoProd.barcode} onChange={(e) => setNuevoProd({ ...nuevoProd, barcode: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-mono" />
                 <input type="text" placeholder="Nombre" value={nuevoProd.nombre} onChange={(e) => setNuevoProd({ ...nuevoProd, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <select value={nuevoProd.categoria} onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
                   {categoriasBase.map((c: string) => <option key={c} value={c}>{c}</option>)}
@@ -1833,14 +1834,14 @@ function AdminDashboard() {
 
               <div className="space-y-2 border-t border-slate-800 pt-3">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-amber-400 uppercase text-[11px]">Medidas y Stock:</span>
+                  <span className="font-bold text-amber-400 uppercase text-[11px]">Medidas, Stock, SKU y Código de Barras por Variante:</span>
                   <button type="button" onClick={agregarCampoVariante} className="bg-slate-800 text-amber-400 px-2.5 py-1 rounded font-bold">＋ Agregar</button>
                 </div>
                 {nuevoProd.variantes.map((v, idx) => (
-                  <div key={idx} className="grid grid-cols-3 gap-2 bg-slate-950 p-2 rounded border border-slate-800">
+                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-5 gap-2 bg-slate-950 p-2.5 rounded border border-slate-800 items-center">
                     <input 
                       type="text" 
-                      placeholder="Medida (Opcional)" 
+                      placeholder="Medida (ej. Talla 6)" 
                       value={v.medida} 
                       onChange={(e) => actualizarVarianteForm(idx, 'medida', e.target.value)} 
                       className="p-1.5 bg-slate-900 rounded text-white" 
@@ -1848,7 +1849,7 @@ function AdminDashboard() {
                     <input 
                       type="number" 
                       step="0.1" 
-                      placeholder="Peso (g) (Opcional)" 
+                      placeholder="Peso (g)" 
                       value={v.peso || ''} 
                       onChange={(e) => actualizarVarianteForm(idx, 'peso', Number(e.target.value))} 
                       className="p-1.5 bg-slate-900 rounded text-white" 
@@ -1861,6 +1862,34 @@ function AdminDashboard() {
                       className="p-1.5 bg-slate-900 rounded text-white" 
                       required 
                     />
+                    <input 
+                      type="text" 
+                      placeholder="SKU Variante (Opcional)" 
+                      value={v.sku || ''} 
+                      onChange={(e) => actualizarVarianteForm(idx, 'sku', e.target.value)} 
+                      className="p-1.5 bg-slate-900 rounded text-white font-mono text-[11px]" 
+                    />
+                    <div className="flex gap-1 items-center">
+                      <input 
+                        type="text" 
+                        placeholder="Código de Barras" 
+                        value={v.barcode || ''} 
+                        onChange={(e) => actualizarVarianteForm(idx, 'barcode', e.target.value)} 
+                        className="w-full p-1.5 bg-slate-900 rounded text-amber-400 font-mono text-[11px]" 
+                      />
+                      {nuevoProd.variantes.length > 1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const nuevasVar = nuevoProd.variantes.filter((_, i) => i !== idx);
+                            setNuevoProd({ ...nuevoProd, variantes: nuevasVar });
+                          }}
+                          className="bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white px-2 py-1 rounded font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1877,7 +1906,7 @@ function AdminDashboard() {
                   <div key={p.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 space-y-3 text-xs flex flex-col justify-between">
                     <div className="flex space-x-3 items-center">
                       <img src={p.fotos[0]} alt={p.nombre} className="w-16 h-16 object-cover rounded bg-slate-800 shrink-0 border border-slate-700" />
-                      <div className="flex-1">
+                      <div className="flex-1 space-y-1">
                         <div className="flex justify-between items-start">
                           <p className="font-bold text-white text-sm">{p.nombre}</p>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${estadoStock.clase}`}>
@@ -1886,6 +1915,20 @@ function AdminDashboard() {
                         </div>
                         <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span> {p.barcode ? `| Barcode: ${p.barcode}` : ''}</p>
                         <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q{p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
+                        
+                        {/* DETALLE DE VARIANTES CON SUS SKU / BARCODE */}
+                        {p.variantes && p.variantes.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800 space-y-1">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Variantes / Tallas:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {p.variantes.map((v: any, vIdx: number) => (
+                                <span key={vIdx} className="bg-slate-950 border border-slate-800 px-2 py-1 rounded text-[10px] text-slate-300">
+                                  {v.medida ? `${v.medida} ` : ''}(Stock: {v.stock}) {v.sku ? `| SKU: ${v.sku}` : ''} {v.barcode ? `| Barcode: ${v.barcode}` : ''}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">

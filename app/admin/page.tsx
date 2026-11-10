@@ -946,7 +946,7 @@ function AdminDashboard() {
       setEditandoProductoId(null);
       alert('¡Joya actualizada y sincronizada en Supabase!');
     } else {
-      const nuevosProductos = [...productos, productoLocalMapeado];
+      const nuevosProductos = [productoLocalMapeado, ...productos];
       setProductos(nuevosProductos);
       localStorage.setItem('ag47_inventario_admin', JSON.stringify(nuevosProductos));
       alert('¡Joya guardada y sincronizada exitosamente en Supabase!');

@@ -882,7 +882,8 @@ function AdminDashboard() {
     window.open(url, '_blank');
   };
 
-  const agregarCampoVariante = () => {
+  const agregarCampoVariante = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault(); // Previene cualquier comportamiento de submit heredado
     setNuevoProd({
       ...nuevoProd,
       variantes: [...nuevoProd.variantes, { medida: '', peso: 0, stock: 0, sku: '', barcode: '' }]

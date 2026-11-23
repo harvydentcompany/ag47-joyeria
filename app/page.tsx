@@ -72,8 +72,11 @@ export default function TiendaPublica() {
         const prodsMapeados = productosData.map((p: any) => ({
           id: p.id,
           sku: p.sku || p.codigo || 'SKU-000',
+          barcode: p.barcode || '',
           nombre: p.nombre,
           categoria: p.categoria,
+          color: p.color || '',
+          bano: p.bano || 'Sin baño',
           precioMinorista: Number(p.precio_minorista || p.precioMinorista || 0),
           tipo_precio_mayorista: p.tipo_precio_mayorista || 'gramo',
           precio_pieza_mayorista: Number(p.precio_pieza_mayorista || p.precioPiezaMayorista || 0),
@@ -81,7 +84,12 @@ export default function TiendaPublica() {
           material: p.material || 'Plata 925',
           descripcion: p.descripcion || '',
           fotos: p.fotos || (p.foto ? [p.foto] : ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800']),
-          variantes: p.variantes || [{ id: 'v1', medida: 'Estándar', peso: p.peso || 2, stock: p.stock || 10 }]
+          variantes: (p.variantes || [{ id: 'v1', medida: 'Estándar', peso: p.peso || 2, stock: p.stock || 10, sku: '', barcode: '' }]).map((v: any, vIdx: number) => ({
+            ...v,
+            id: v.id || `v_${vIdx}`,
+            sku: v.sku || '',
+            barcode: v.barcode || ''
+          }))
         }));
         setProductos(prodsMapeados);
       }
@@ -106,6 +114,9 @@ export default function TiendaPublica() {
     const channel = supabase
       .channel('cambios-tienda')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
+        cargarDatosDesdeSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categorias' }, () => {
         cargarDatosDesdeSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'config_tienda' }, () => {
@@ -206,9 +217,12 @@ export default function TiendaPublica() {
     const itemEnCarrito = {
       id: `${productoSeleccionadoModal.id}-${varianteElegida.id}`,
       productoId: productoSeleccionadoModal.id,
-      sku: productoSeleccionadoModal.sku,
+      sku: varianteElegida.sku || productoSeleccionadoModal.sku,
+      barcode: varianteElegida.barcode || productoSeleccionadoModal.barcode || '',
       nombre: productoSeleccionadoModal.nombre,
       medida: varianteElegida.medida,
+      color: productoSeleccionadoModal.color || '',
+      bano: productoSeleccionadoModal.bano || 'Sin baño',
       pesoUnitario: varianteElegida.peso,
       precio: precioCalculado,
       foto: productoSeleccionadoModal.fotos[0],
@@ -285,7 +299,9 @@ export default function TiendaPublica() {
       items: carrito.map((item, index) => ({
         id: index + 1,
         productoId: item.productoId,
-        nombre: `${item.nombre} (Talla: ${item.medida})`,
+        nombre: `${item.nombre} (Talla: ${item.medida})${item.color ? ` - ${item.color}` : ''}${item.bano && item.bano !== 'Sin baño' ? ` [${item.bano}]` : ''}`,
+        sku: item.sku || '',
+        barcode: item.barcode || '',
         peso: item.pesoUnitario || 0,
         cantidadSolicitada: item.cantidad,
         cantidadDisponible: item.cantidad,
@@ -398,8 +414,18 @@ export default function TiendaPublica() {
   };
 
   const productosFiltrados = productos.filter(p => {
+    const q = busqueda.toLowerCase().trim();
     const coincideCategoria = categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro;
-    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.sku.toLowerCase().includes(busqueda.toLowerCase());
+    const coincideBusqueda = !q ||
+      p.nombre.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      (p.barcode && p.barcode.toLowerCase().includes(q)) ||
+      (p.color && p.color.toLowerCase().includes(q)) ||
+      (p.bano && p.bano.toLowerCase().includes(q)) ||
+      (p.variantes && p.variantes.some((v: any) =>
+        (v.sku && v.sku.toLowerCase().includes(q)) ||
+        (v.barcode && v.barcode.toLowerCase().includes(q))
+      ));
     return coincideCategoria && coincideBusqueda;
   });
 
@@ -665,6 +691,11 @@ export default function TiendaPublica() {
                           <div className="p-4 space-y-1">
                             <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
                             <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                            {(prod.color || (prod.bano && prod.bano !== 'Sin baño')) && (
+                              <p className="text-[10px] text-zinc-500">
+                                {prod.color ? `Color: ${prod.color}` : ''}{prod.color && prod.bano && prod.bano !== 'Sin baño' ? ' • ' : ''}{prod.bano && prod.bano !== 'Sin baño' ? prod.bano : ''}
+                              </p>
+                            )}
                           </div>
                         </div>
 
@@ -823,6 +854,11 @@ export default function TiendaPublica() {
                       <div className="p-4 space-y-1">
                         <span className="text-[10px] font-mono uppercase text-amber-800 font-semibold">SKU: {prod.sku}</span>
                         <h3 className="font-serif font-bold text-xs text-zinc-900">{prod.nombre}</h3>
+                        {(prod.color || (prod.bano && prod.bano !== 'Sin baño')) && (
+                          <p className="text-[10px] text-zinc-500">
+                            {prod.color ? `Color: ${prod.color}` : ''}{prod.color && prod.bano && prod.bano !== 'Sin baño' ? ' • ' : ''}{prod.bano && prod.bano !== 'Sin baño' ? prod.bano : ''}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -905,7 +941,7 @@ export default function TiendaPublica() {
                             <div>
                               <p className="font-bold text-zinc-900 group-hover:text-amber-800 transition">{item.nombre} | Talla: {item.medida}</p>
                               <span className="text-[10px] font-mono text-zinc-400">
-                                SKU: {item.sku} {esMayorista && `| Peso: ${item.pesoUnitario}g`}
+                                SKU: {item.sku}{item.barcode ? ` | Barcode: ${item.barcode}` : ''}{item.color ? ` | Color: ${item.color}` : ''}{item.bano && item.bano !== 'Sin baño' ? ` | ${item.bano}` : ''} {esMayorista && `| Peso: ${item.pesoUnitario}g`}
                               </span>
                             </div>
                           </div>
@@ -1250,8 +1286,15 @@ export default function TiendaPublica() {
                 </div>
 
                 <div className="space-y-1 text-zinc-500 font-mono text-[11px]">
-                  <p><strong className="text-zinc-700">ID:</strong> {productoSeleccionadoModal.sku}</p>
+                  <p><strong className="text-zinc-700">ID:</strong> {varianteElegida?.sku || productoSeleccionadoModal.sku}</p>
+                  {(varianteElegida?.barcode || productoSeleccionadoModal.barcode) && (
+                    <p><strong className="text-zinc-700">Barcode:</strong> {varianteElegida?.barcode || productoSeleccionadoModal.barcode}</p>
+                  )}
                   <p><strong className="text-zinc-700">Material:</strong> {productoSeleccionadoModal.material}</p>
+                  {productoSeleccionadoModal.color && (
+                    <p><strong className="text-zinc-700">Color:</strong> {productoSeleccionadoModal.color}</p>
+                  )}
+                  <p><strong className="text-zinc-700">Baño:</strong> {productoSeleccionadoModal.bano || 'Sin baño'}</p>
                 </div>
 
                 {esMayorista && clienteMayoristaActivo ? (() => {

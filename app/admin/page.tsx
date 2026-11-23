@@ -1768,8 +1768,10 @@ function AdminDashboard() {
                 <input type="text" placeholder="Color" value={nuevoProd.color} onChange={(e) => setNuevoProd({ ...nuevoProd, color: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" />
                 <select value={nuevoProd.bano} onChange={(e) => setNuevoProd({ ...nuevoProd, bano: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-bold">
                   <option value="Sin baño">Sin baño</option>
-                  <option value="Baño dorado rosado">Baño dorado rosado</option>
+                  <option value="Baño dorado">Baño dorado</option>
+                  <option value="Baño rosa">Baño rosa</option>
                   <option value="Rodinado">Rodinado</option>
+                  <option value="Laminado">Laminado</option>
                 </select>
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>

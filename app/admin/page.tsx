@@ -166,6 +166,8 @@ function AdminDashboard() {
           barcode: p.barcode,
           nombre: p.nombre,
           categoria: p.categoria,
+          color: p.color || '',
+          bano: p.bano || 'Sin baño',
           precio_minorista: p.precioMinorista,
           tipo_precio_mayorista: p.tipoPrecioMayorista,
           precio_pieza_mayorista: p.precioPiezaMayorista,
@@ -478,6 +480,8 @@ function AdminDashboard() {
           barcode: p.barcode,
           nombre: p.nombre,
           categoria: p.categoria,
+          color: p.color || '',
+          bano: p.bano || 'Sin baño',
           precioMinorista: Number(p.precio_minorista || 0),
           tipoPrecioMayorista: p.tipo_precio_mayorista || 'gramo',
           precioPiezaMayorista: Number(p.precio_pieza_mayorista || 0),
@@ -500,7 +504,9 @@ function AdminDashboard() {
     sku: '', 
     barcode: '',
     nombre: '', 
-    categoria: categoriasBase[0] || 'Anillos', 
+    categoria: categoriasBase[0] || 'Anillos',
+    color: '',
+    bano: 'Sin baño',
     precioMinorista: 0, 
     tipoPrecioMayorista: 'gramo' as 'gramo' | 'pieza',
     precioPiezaMayorista: 0,
@@ -692,12 +698,12 @@ function AdminDashboard() {
   });
 
   const exportarCatalogoCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,PrecioMinorista,TipoMayorista,PrecioPiezaMayorista,ImagenURL_1,ImagenURL_2\n";
+    let csvContent = "data:text/csv;charset=utf-8,SKU,Barcode,Nombre,Categoria,Color,Bano,PrecioMinorista,TipoMayorista,PrecioPiezaMayorista,ImagenURL_1,ImagenURL_2\n";
     
     productos.forEach(p => {
       const img1 = p.fotos[0] || '';
       const img2 = p.fotos[1] || '';
-      const row = `"${p.sku}","${p.barcode || ''}","${p.nombre}","${p.categoria}",${p.precioMinorista},"${p.tipoPrecioMayorista}",${p.precioPiezaMayorista || 0},"${img1}","${img2}"`;
+      const row = `"${p.sku}","${p.barcode || ''}","${p.nombre}","${p.categoria}","${p.color || ''}","${p.bano || 'Sin baño'}",${p.precioMinorista},"${p.tipoPrecioMayorista}",${p.precioPiezaMayorista || 0},"${img1}","${img2}"`;
       csvContent += row + "\r\n";
     });
 
@@ -913,6 +919,8 @@ function AdminDashboard() {
       barcode: nuevoProd.barcode || '',
       nombre: nuevoProd.nombre,
       categoria: nuevoProd.categoria,
+      color: nuevoProd.color || '',
+      bano: nuevoProd.bano || 'Sin baño',
       precio_minorista: Number(nuevoProd.precioMinorista),
       tipo_precio_mayorista: nuevoProd.tipoPrecioMayorista,
       precio_pieza_mayorista: nuevoProd.tipoPrecioMayorista === 'pieza' ? Number(nuevoProd.precioPiezaMayorista) : 0,
@@ -933,6 +941,8 @@ function AdminDashboard() {
       barcode: productoObj.barcode,
       nombre: productoObj.nombre,
       categoria: productoObj.categoria,
+      color: productoObj.color,
+      bano: productoObj.bano,
       precioMinorista: productoObj.precio_minorista,
       tipoPrecioMayorista: productoObj.tipo_precio_mayorista,
       precioPiezaMayorista: productoObj.precio_pieza_mayorista,
@@ -957,7 +967,9 @@ function AdminDashboard() {
       sku: '', 
       barcode: '', 
       nombre: '', 
-      categoria: categoriasBase[0] || 'Anillos', 
+      categoria: categoriasBase[0] || 'Anillos',
+      color: '',
+      bano: 'Sin baño',
       precioMinorista: 0, 
       tipoPrecioMayorista: 'gramo',
       precioPiezaMayorista: 0,
@@ -988,6 +1000,8 @@ function AdminDashboard() {
       barcode: p.barcode || '',
       nombre: p.nombre,
       categoria: p.categoria,
+      color: p.color || '',
+      bano: p.bano || 'Sin baño',
       precioMinorista: p.precioMinorista,
       tipoPrecioMayorista: p.tipoPrecioMayorista || 'gramo',
       precioPiezaMayorista: p.precioPiezaMayorista || 0,
@@ -1015,6 +1029,8 @@ function AdminDashboard() {
       p.nombre.toLowerCase().includes(textoBusqueda) || 
       p.sku.toLowerCase().includes(textoBusqueda) || 
       (p.barcode && p.barcode.toLowerCase().includes(textoBusqueda)) ||
+      (p.color && p.color.toLowerCase().includes(textoBusqueda)) ||
+      (p.bano && p.bano.toLowerCase().includes(textoBusqueda)) ||
       (p.variantes && p.variantes.some((v: any) => (v.sku && v.sku.toLowerCase().includes(textoBusqueda)) || (v.barcode && v.barcode.toLowerCase().includes(textoBusqueda))));
 
     return cumpleCat && cumpleStock && cumpleBusqueda;
@@ -1733,7 +1749,7 @@ function AdminDashboard() {
                     type="button" 
                     onClick={() => {
                       setEditandoProductoId(null);
-                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], precioMinorista: 0, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0, sku: '', barcode: '' }] });
+                      setNuevoProd({ sku: '', barcode: '', nombre: '', categoria: categoriasBase[0], color: '', bano: 'Sin baño', precioMinorista: 0, tipoPrecioMayorista: 'gramo', precioPiezaMayorista: 0, fotos: [], variantes: [{ medida: 'Talla 6', peso: 0, stock: 0, sku: '', barcode: '' }] });
                     }} 
                     className="text-rose-400 font-bold hover:underline"
                   >
@@ -1748,6 +1764,12 @@ function AdminDashboard() {
                 <input type="text" placeholder="Nombre" value={nuevoProd.nombre} onChange={(e) => setNuevoProd({ ...nuevoProd, nombre: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
                 <select value={nuevoProd.categoria} onChange={(e) => setNuevoProd({ ...nuevoProd, categoria: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white">
                   {categoriasBase.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <input type="text" placeholder="Color" value={nuevoProd.color} onChange={(e) => setNuevoProd({ ...nuevoProd, color: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" />
+                <select value={nuevoProd.bano} onChange={(e) => setNuevoProd({ ...nuevoProd, bano: e.target.value })} className="p-2 bg-slate-950 border border-slate-800 rounded text-amber-400 font-bold">
+                  <option value="Sin baño">Sin baño</option>
+                  <option value="Baño dorado rosado">Baño dorado rosado</option>
+                  <option value="Rodinado">Rodinado</option>
                 </select>
                 <input type="number" placeholder="Precio Público (Q)" value={nuevoProd.precioMinorista || ''} onChange={(e) => setNuevoProd({ ...nuevoProd, precioMinorista: Number(e.target.value) })} className="p-2 bg-slate-950 border border-slate-800 rounded text-white" required />
               </div>
@@ -1915,6 +1937,9 @@ function AdminDashboard() {
                           </span>
                         </div>
                         <p className="text-slate-400">SKU: <span className="text-amber-400 font-mono">{p.sku}</span> {p.barcode ? `| Barcode: ${p.barcode}` : ''}</p>
+                        <p className="text-slate-300">
+                          {p.color ? `Color: ${p.color} | ` : ''}Baño: <span className="text-amber-300 font-semibold">{p.bano || 'Sin baño'}</span>
+                        </p>
                         <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q{p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
                         
                         {/* DETALLE DE VARIANTES CON SUS SKU / BARCODE */}

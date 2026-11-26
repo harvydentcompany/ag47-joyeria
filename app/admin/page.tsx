@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function AdminPage() {
@@ -470,6 +470,15 @@ function AdminDashboard() {
 
   const [productos, setProductos] = useState<any[]>([]);
 
+  // ESTADOS PARA VERIFICACIÓN DE INVENTARIO POR ESCANEO
+  const [codigoEscaneo, setCodigoEscaneo] = useState('');
+  const [productoEscaneadoId, setProductoEscaneadoId] = useState<number | null>(null);
+  const [varianteEscaneadaIdx, setVarianteEscaneadaIdx] = useState<number>(0);
+  const [mensajeEscaneo, setMensajeEscaneo] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
+  const [verificadosSesion, setVerificadosSesion] = useState<{ productoId: number; varianteIdx: number; estado: 'Disponible' | 'Agotado'; stock: number; hora: string }[]>([]);
+  const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
+  const inputEscaneoRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     const cargarProductosSupabase = async () => {
       const { data, error } = await supabase.from('productos').select('*');
@@ -499,6 +508,137 @@ function AdminDashboard() {
     };
     cargarProductosSupabase();
   }, []);
+
+  useEffect(() => {
+    if (seccion === 'verificacion') {
+      setTimeout(() => inputEscaneoRef.current?.focus(), 50);
+    }
+  }, [seccion]);
+
+  const sincronizarProductoVerificado = async (prodActualizado: any) => {
+    setGuardandoVerificacion(true);
+    const listaActualizada = productos.map((item: any) => item.id === prodActualizado.id ? prodActualizado : item);
+    setProductos(listaActualizada);
+    localStorage.setItem('ag47_inventario_admin', JSON.stringify(listaActualizada));
+
+    const { error } = await supabase.from('productos').upsert([{
+      id: prodActualizado.id,
+      sku: prodActualizado.sku,
+      barcode: prodActualizado.barcode || '',
+      nombre: prodActualizado.nombre,
+      categoria: prodActualizado.categoria,
+      color: prodActualizado.color || '',
+      bano: prodActualizado.bano || 'Sin baño',
+      precio_minorista: Number(prodActualizado.precioMinorista || 0),
+      tipo_precio_mayorista: prodActualizado.tipoPrecioMayorista || 'gramo',
+      precio_pieza_mayorista: Number(prodActualizado.precioPiezaMayorista || 0),
+      fotos: prodActualizado.fotos || [],
+      variantes: prodActualizado.variantes || []
+    }]);
+
+    setGuardandoVerificacion(false);
+    if (error) {
+      setMensajeEscaneo({ tipo: 'err', texto: 'Guardado local, pero error en Supabase: ' + error.message });
+    }
+  };
+
+  const registrarVerificacionSesion = (prodId: number, varIdx: number, nuevoStock: number, estadoMarca: 'Disponible' | 'Agotado') => {
+    const horaStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setVerificadosSesion(prev => {
+      const filtrados = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
+      return [{ productoId: prodId, varianteIdx: varIdx, estado: estadoMarca, stock: nuevoStock, hora: horaStr }, ...filtrados];
+    });
+  };
+
+  const procesarEscaneoCodigo = (codigoRaw?: string) => {
+    const q = (codigoRaw !== undefined ? codigoRaw : codigoEscaneo).trim().toLowerCase();
+    if (!q) return;
+
+    let encontradoProdIdx = -1;
+    let encontradoVarIdx = 0;
+
+    for (let i = 0; i < productos.length; i++) {
+      const p = productos[i];
+      if (Array.isArray(p.variantes)) {
+        const vIdx = p.variantes.findIndex((v: any) =>
+          (v.barcode && String(v.barcode).trim().toLowerCase() === q) ||
+          (v.sku && String(v.sku).trim().toLowerCase() === q)
+        );
+        if (vIdx !== -1) {
+          encontradoProdIdx = i;
+          encontradoVarIdx = vIdx;
+          break;
+        }
+      }
+    }
+
+    if (encontradoProdIdx === -1) {
+      encontradoProdIdx = productos.findIndex((p: any) =>
+        (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
+        (p.sku && String(p.sku).trim().toLowerCase() === q) ||
+        (p.nombre && String(p.nombre).trim().toLowerCase() === q)
+      );
+      encontradoVarIdx = 0;
+    }
+
+    if (encontradoProdIdx === -1) {
+      setMensajeEscaneo({ tipo: 'err', texto: `No se encontró ninguna joya con el código "${codigoRaw ?? codigoEscaneo}".` });
+      setCodigoEscaneo('');
+      inputEscaneoRef.current?.focus();
+      return;
+    }
+
+    const prod = productos[encontradoProdIdx];
+    const vars = Array.isArray(prod.variantes) && prod.variantes.length > 0
+      ? prod.variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+
+    const prodConVariantes = { ...prod, variantes: vars };
+    setProductoEscaneadoId(prodConVariantes.id);
+    setVarianteEscaneadaIdx(encontradoVarIdx);
+    const stockActualVar = Number(vars[encontradoVarIdx]?.stock || 0);
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `Escaneado: ${prodConVariantes.nombre} (${vars[encontradoVarIdx]?.medida || 'Estándar'}) — Stock actual: ${stockActualVar}`
+    });
+    registrarVerificacionSesion(prodConVariantes.id, encontradoVarIdx, stockActualVar, stockActualVar > 0 ? 'Disponible' : 'Agotado');
+    setCodigoEscaneo('');
+    inputEscaneoRef.current?.focus();
+  };
+
+  const cambiarCantidadVerificacion = async (delta: number, valorDirecto?: number) => {
+    const prod = productos.find((p: any) => p.id === productoEscaneadoId);
+    if (!prod) return;
+    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
+    const actual = Number(vars[varianteEscaneadaIdx]?.stock || 0);
+    const nuevaCant = valorDirecto !== undefined ? Math.max(0, Math.floor(valorDirecto)) : Math.max(0, actual + delta);
+    vars[varianteEscaneadaIdx] = { ...vars[varianteEscaneadaIdx], stock: nuevaCant };
+    const prodActualizado = { ...prod, variantes: vars };
+    await sincronizarProductoVerificado(prodActualizado);
+    registrarVerificacionSesion(prod.id, varianteEscaneadaIdx, nuevaCant, nuevaCant > 0 ? 'Disponible' : 'Agotado');
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `Cantidad actualizada a ${nuevaCant} en ${prod.nombre} (${vars[varianteEscaneadaIdx]?.medida || 'Estándar'}).`
+    });
+    inputEscaneoRef.current?.focus();
+  };
+
+  const marcarEstadoVerificacion = async (nuevoEstado: 'Disponible' | 'Agotado') => {
+    const prod = productos.find((p: any) => p.id === productoEscaneadoId);
+    if (!prod) return;
+    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
+    const stockActual = Number(vars[varianteEscaneadaIdx]?.stock || 0);
+    const nuevaCant = nuevoEstado === 'Agotado' ? 0 : (stockActual > 0 ? stockActual : 1);
+    vars[varianteEscaneadaIdx] = { ...vars[varianteEscaneadaIdx], stock: nuevaCant };
+    const prodActualizado = { ...prod, variantes: vars };
+    await sincronizarProductoVerificado(prodActualizado);
+    registrarVerificacionSesion(prod.id, varianteEscaneadaIdx, nuevaCant, nuevoEstado);
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `Marcado como ${nuevoEstado} (${nuevaCant} pzas) — ${prod.nombre}.`
+    });
+    inputEscaneoRef.current?.focus();
+  };
 
   const [nuevoProd, setNuevoProd] = useState({
     sku: '', 
@@ -1050,6 +1190,15 @@ function AdminDashboard() {
     ? pedidos
     : pedidos.filter((p: any) => p.estado === filtroEstadoPedido);
 
+  const productoVerificadoActual = productos.find((p: any) => p.id === productoEscaneadoId) || null;
+  const variantesVerificacionActual = productoVerificadoActual
+    ? (Array.isArray(productoVerificadoActual.variantes) && productoVerificadoActual.variantes.length > 0
+      ? productoVerificadoActual.variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])
+    : [];
+  const varianteVerificacionActual = variantesVerificacionActual[varianteEscaneadaIdx] || variantesVerificacionActual[0] || null;
+  const stockVerificacionActual = Number(varianteVerificacionActual?.stock || 0);
+
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       
@@ -1083,6 +1232,11 @@ function AdminDashboard() {
             <button onClick={() => setSeccion('productos')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'productos' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
               <span>💎</span>
               <span>Productos y Barcodes</span>
+            </button>
+
+            <button onClick={() => setSeccion('verificacion')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'verificacion' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
+              <span>📷</span>
+              <span>Verificación Inventario</span>
             </button>
 
             <button onClick={() => setSeccion('reportes')} className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded transition ${seccion === 'reportes' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:bg-slate-800'}`}>
@@ -1966,6 +2120,248 @@ function AdminDashboard() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* VERIFICACIÓN DE INVENTARIO POR ESCANEO */}
+        {seccion === 'verificacion' && (
+          <div className="space-y-6 max-w-5xl text-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div>
+                <h2 className="text-xl font-bold font-serif text-amber-400">Verificación de Inventario por Escaneo</h2>
+                <p className="text-slate-400">Escanea códigos de barras o SKU para revisar la pieza, marcar Disponible o Agotado y ajustar cantidades.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {guardandoVerificacion && (
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-lg font-mono text-[11px]">
+                    Sincronizando...
+                  </span>
+                )}
+                {verificadosSesion.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setVerificadosSesion([])}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[11px]"
+                  >
+                    Limpiar Turno ({verificadosSesion.length})
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* CAJA DE ESCANEO */}
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-3">
+              <label className="block font-bold uppercase text-amber-400 text-[11px]">
+                📷 Escanear Código de Barras o SKU (Presiona Enter o Buscar)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  ref={inputEscaneoRef}
+                  type="text"
+                  value={codigoEscaneo}
+                  onChange={(e) => setCodigoEscaneo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      procesarEscaneoCodigo();
+                    }
+                  }}
+                  placeholder="Escanea aquí con lector o escribe SKU / Barcode..."
+                  className="flex-1 p-3 bg-slate-950 border border-amber-500/50 rounded-lg text-amber-300 font-mono text-sm focus:outline-none focus:border-amber-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => procesarEscaneoCodigo()}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-lg uppercase tracking-wider transition"
+                >
+                  Buscar / Escanear
+                </button>
+              </div>
+
+              {mensajeEscaneo && (
+                <div className={`p-3 rounded-lg border font-bold ${
+                  mensajeEscaneo.tipo === 'ok'
+                    ? 'bg-emerald-600/15 border-emerald-500/40 text-emerald-300'
+                    : 'bg-rose-600/15 border-rose-500/40 text-rose-300'
+                }`}>
+                  {mensajeEscaneo.texto}
+                </div>
+              )}
+            </div>
+
+            {/* FICHA DEL PRODUCTO ESCANEADO */}
+            {productoVerificadoActual && (
+              <div className="bg-slate-900 border border-amber-500/40 p-6 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                <div className="space-y-2">
+                  <div className="aspect-square bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
+                    <img
+                      src={productoVerificadoActual.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
+                      alt={productoVerificadoActual.nombre}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 space-y-4">
+                  <div className="flex flex-wrap justify-between items-start gap-2 border-b border-slate-800 pb-3">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase text-amber-400 font-bold">
+                        {productoVerificadoActual.categoria} • SKU: {productoVerificadoActual.sku}
+                        {productoVerificadoActual.barcode ? ` • Barcode: ${productoVerificadoActual.barcode}` : ''}
+                      </span>
+                      <h3 className="text-lg font-serif font-bold text-white mt-0.5">{productoVerificadoActual.nombre}</h3>
+                      <p className="text-slate-400 text-[11px]">
+                        {productoVerificadoActual.color ? `Color: ${productoVerificadoActual.color} • ` : ''}
+                        Baño: <span className="text-amber-300">{productoVerificadoActual.bano || 'Sin baño'}</span> • Precio: Q{productoVerificadoActual.precioMinorista}
+                      </p>
+                    </div>
+
+                    <span className={`px-3 py-1 rounded-full font-bold text-[11px] uppercase border ${
+                      stockVerificacionActual > 0
+                        ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-rose-600/20 text-rose-300 border-rose-500/40'
+                    }`}>
+                      {stockVerificacionActual > 0 ? 'Disponible' : 'Agotado'}
+                    </span>
+                  </div>
+
+                  {/* SELECTOR DE VARIANTE / TALLA */}
+                  {variantesVerificacionActual.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="block text-[10px] uppercase font-bold text-slate-400">Variante / Talla:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {variantesVerificacionActual.map((v: any, idx: number) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setVarianteEscaneadaIdx(idx)}
+                            className={`px-3 py-1.5 rounded-lg border font-bold text-xs transition ${
+                              varianteEscaneadaIdx === idx
+                                ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            {v.medida || `Variante ${idx + 1}`} ({Number(v.stock || 0)} pzas)
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BOTONES DISPONIBLE / AGOTADO */}
+                  <div className="space-y-1.5 pt-1">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Estado Rápido:</span>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => marcarEstadoVerificacion('Disponible')}
+                        className={`py-3 rounded-xl font-black uppercase tracking-wider text-xs transition shadow ${
+                          stockVerificacionActual > 0
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-2 ring-emerald-400/40'
+                            : 'bg-slate-800 hover:bg-emerald-700 text-emerald-300 hover:text-white border border-emerald-600/40'
+                        }`}
+                      >
+                        ✓ Disponible
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => marcarEstadoVerificacion('Agotado')}
+                        className={`py-3 rounded-xl font-black uppercase tracking-wider text-xs transition shadow ${
+                          stockVerificacionActual === 0
+                            ? 'bg-rose-600 hover:bg-rose-500 text-white ring-2 ring-rose-400/40'
+                            : 'bg-slate-800 hover:bg-rose-700 text-rose-300 hover:text-white border border-rose-600/40'
+                        }`}
+                      >
+                        ✕ Agotado (0)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* CONTROLES DE CANTIDAD (- / + / DIRECTO) */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Ajustar Cantidad en Inventario:</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidadVerificacion(-1)}
+                        className="w-12 h-11 bg-slate-800 hover:bg-rose-600 text-white font-black text-lg rounded-lg transition"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={stockVerificacionActual}
+                        onChange={(e) => cambiarCantidadVerificacion(0, Number(e.target.value))}
+                        className="w-24 h-11 bg-slate-950 border border-slate-700 rounded-lg text-center font-mono font-black text-base text-amber-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => cambiarCantidadVerificacion(1)}
+                        className="w-12 h-11 bg-slate-800 hover:bg-emerald-600 text-white font-black text-lg rounded-lg transition"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* HISTORIAL DE ESCANEOS DE LA SESIÓN */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                <h3 className="font-bold uppercase text-amber-400 text-[11px]">
+                  📋 Piezas Verificadas en Esta Sesión ({verificadosSesion.length})
+                </h3>
+              </div>
+              {verificadosSesion.length === 0 ? (
+                <p className="p-6 text-center text-slate-500">Aún no has escaneado piezas en este turno.</p>
+              ) : (
+                <div className="divide-y divide-slate-800">
+                  {verificadosSesion.map((reg, i) => {
+                    const prodRef = productos.find((p: any) => p.id === reg.productoId);
+                    const varRef = prodRef?.variantes?.[reg.varianteIdx];
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          setProductoEscaneadoId(reg.productoId);
+                          setVarianteEscaneadaIdx(reg.varianteIdx);
+                        }}
+                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/60 cursor-pointer transition"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <img
+                            src={prodRef?.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
+                            alt=""
+                            className="w-10 h-10 object-cover rounded border border-slate-700"
+                          />
+                          <div>
+                            <p className="font-bold text-white">
+                              {prodRef?.nombre || 'Producto'} {varRef?.medida ? `(${varRef.medida})` : ''}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-400">
+                              SKU: {varRef?.sku || prodRef?.sku || 'N/A'} • {reg.hora}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span className="font-mono font-bold text-amber-400">Stock: {reg.stock}</span>
+                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            reg.estado === 'Disponible'
+                              ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-rose-600/20 text-rose-300 border border-rose-500/40'
+                          }`}>
+                            {reg.estado}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -464,8 +464,9 @@ function AdminDashboard() {
   });
 
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState('Todas');
-  const [filtroEstadoStock, setFiltroEstadoStock] = useState('Todos');
-  const [busquedaProducto, setBusquedaProducto] = useState(''); // Estado para el buscador de productos
+  const [filtroEstadoStock, setFiltroEstadoStock] = useState('Disponibles');
+  const [mostrarAgotadosCatalogo, setMostrarAgotadosCatalogo] = useState(false);
+  const [busquedaProducto, setBusquedaProducto] = useState('');
   const [editandoProductoId, setEditandoProductoId] = useState<number | null>(null);
 
   const [productos, setProductos] = useState<any[]>([]);
@@ -550,58 +551,79 @@ function AdminDashboard() {
     });
   };
 
+  const obtenerStockTotalProducto = (p: any) => {
+    if (!Array.isArray(p.variantes) || p.variantes.length === 0) return 0;
+    return p.variantes.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0);
+  };
+
+  const elegirVarianteConPrioridad = (variantes: any[], idxCoincidente = 0) => {
+    const lista = Array.isArray(variantes) && variantes.length > 0
+      ? variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+    if (Number(lista[idxCoincidente]?.stock || 0) > 0) {
+      return { variantes: lista, idx: idxCoincidente };
+    }
+    const idxDisponible = lista.findIndex((v: any) => Number(v.stock || 0) > 0);
+    return { variantes: lista, idx: idxDisponible !== -1 ? idxDisponible : idxCoincidente };
+  };
+
   const procesarEscaneoCodigo = (codigoRaw?: string) => {
     const q = (codigoRaw !== undefined ? codigoRaw : codigoEscaneo).trim().toLowerCase();
     if (!q) return;
 
-    let encontradoProdIdx = -1;
-    let encontradoVarIdx = 0;
+    let coincidenciaDisponible: { prod: any; varIdx: number } | null = null;
+    let coincidenciaCualquiera: { prod: any; varIdx: number } | null = null;
 
     for (let i = 0; i < productos.length; i++) {
       const p = productos[i];
       if (Array.isArray(p.variantes)) {
-        const vIdx = p.variantes.findIndex((v: any) =>
-          (v.barcode && String(v.barcode).trim().toLowerCase() === q) ||
-          (v.sku && String(v.sku).trim().toLowerCase() === q)
-        );
-        if (vIdx !== -1) {
-          encontradoProdIdx = i;
-          encontradoVarIdx = vIdx;
-          break;
+        for (let vIdx = 0; vIdx < p.variantes.length; vIdx++) {
+          const v = p.variantes[vIdx];
+          const matchVar =
+            (v.barcode && String(v.barcode).trim().toLowerCase() === q) ||
+            (v.sku && String(v.sku).trim().toLowerCase() === q);
+          if (matchVar) {
+            if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: vIdx };
+            if (!coincidenciaDisponible && Number(v.stock || 0) > 0) {
+              coincidenciaDisponible = { prod: p, varIdx: vIdx };
+            }
+          }
+        }
+      }
+
+      const matchProd =
+        (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
+        (p.sku && String(p.sku).trim().toLowerCase() === q) ||
+        (p.nombre && String(p.nombre).trim().toLowerCase() === q);
+
+      if (matchProd) {
+        const elegida = elegirVarianteConPrioridad(p.variantes, 0);
+        if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: elegida.idx };
+        if (!coincidenciaDisponible && obtenerStockTotalProducto(p) > 0) {
+          coincidenciaDisponible = { prod: p, varIdx: elegida.idx };
         }
       }
     }
 
-    if (encontradoProdIdx === -1) {
-      encontradoProdIdx = productos.findIndex((p: any) =>
-        (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
-        (p.sku && String(p.sku).trim().toLowerCase() === q) ||
-        (p.nombre && String(p.nombre).trim().toLowerCase() === q)
-      );
-      encontradoVarIdx = 0;
-    }
+    const elegidaFinal = coincidenciaDisponible || coincidenciaCualquiera;
 
-    if (encontradoProdIdx === -1) {
+    if (!elegidaFinal) {
       setMensajeEscaneo({ tipo: 'err', texto: `No se encontró ninguna joya con el código "${codigoRaw ?? codigoEscaneo}".` });
       setCodigoEscaneo('');
       inputEscaneoRef.current?.focus();
       return;
     }
 
-    const prod = productos[encontradoProdIdx];
-    const vars = Array.isArray(prod.variantes) && prod.variantes.length > 0
-      ? prod.variantes
-      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
-
-    const prodConVariantes = { ...prod, variantes: vars };
+    const { variantes: vars, idx: varIdxFinal } = elegirVarianteConPrioridad(elegidaFinal.prod.variantes, elegidaFinal.varIdx);
+    const prodConVariantes = { ...elegidaFinal.prod, variantes: vars };
     setProductoEscaneadoId(prodConVariantes.id);
-    setVarianteEscaneadaIdx(encontradoVarIdx);
-    const stockActualVar = Number(vars[encontradoVarIdx]?.stock || 0);
+    setVarianteEscaneadaIdx(varIdxFinal);
+    const stockActualVar = Number(vars[varIdxFinal]?.stock || 0);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Escaneado: ${prodConVariantes.nombre} (${vars[encontradoVarIdx]?.medida || 'Estándar'}) — Stock actual: ${stockActualVar}`
+      texto: `Escaneado (priorizando disponible): ${prodConVariantes.nombre} (${vars[varIdxFinal]?.medida || 'Estándar'}) — Stock: ${stockActualVar}`
     });
-    registrarVerificacionSesion(prodConVariantes.id, encontradoVarIdx, stockActualVar, stockActualVar > 0 ? 'Disponible' : 'Agotado');
+    registrarVerificacionSesion(prodConVariantes.id, varIdxFinal, stockActualVar, stockActualVar > 0 ? 'Disponible' : 'Agotado');
     setCodigoEscaneo('');
     inputEscaneoRef.current?.focus();
   };
@@ -1029,7 +1051,7 @@ function AdminDashboard() {
   };
 
   const agregarCampoVariante = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault(); // Previene cualquier comportamiento de submit heredado
+    if (e) e.preventDefault();
     setNuevoProd({
       ...nuevoProd,
       variantes: [...nuevoProd.variantes, { medida: '', peso: 0, stock: 0, sku: '', barcode: '' }]
@@ -1152,7 +1174,7 @@ function AdminDashboard() {
   };
 
   const obtenerEstadoStockProducto = (p: any) => {
-    const totalStock = p.variantes.reduce((acc: number, v: any) => acc + Number(v.stock || 0), 0);
+    const totalStock = obtenerStockTotalProducto(p);
     if (totalStock === 0) return { texto: 'Agotado', clase: 'bg-rose-600/20 text-rose-400 border-rose-600/40' };
     if (totalStock <= 3) return { texto: 'Baja cantidad', clase: 'bg-amber-600/20 text-amber-400 border-amber-600/40' };
     return { texto: 'Disponible', clase: 'bg-emerald-600/20 text-emerald-400 border-emerald-600/40' };
@@ -1161,9 +1183,16 @@ function AdminDashboard() {
   const productosFiltrados = productos.filter((p: any) => {
     const cumpleCat = categoriaSeleccionada === 'Todas' || p.categoria === categoriaSeleccionada;
     const estadoObj = obtenerEstadoStockProducto(p);
-    const cumpleStock = filtroEstadoStock === 'Todos' || estadoObj.texto === filtroEstadoStock;
+    const totalStock = obtenerStockTotalProducto(p);
+
+    if (!mostrarAgotadosCatalogo && totalStock === 0) {
+      return false;
+    }
+
+    const cumpleStock = filtroEstadoStock === 'Disponibles'
+      ? totalStock > 0
+      : (filtroEstadoStock === 'Todos' || estadoObj.texto === filtroEstadoStock);
     
-    // Filtro del buscador por nombre, SKU o código de barras
     const textoBusqueda = busquedaProducto.toLowerCase().trim();
     const cumpleBusqueda = !textoBusqueda || 
       p.nombre.toLowerCase().includes(textoBusqueda) || 
@@ -1814,18 +1843,35 @@ function AdminDashboard() {
                 <p className="text-xs text-slate-400">Las piezas creadas aquí se guardan de forma permanente en la nube para el Admin y el POS.</p>
               </div>
 
-              <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
-                {['Todos', 'Disponible', 'Baja cantidad', 'Agotado'].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setFiltroEstadoStock(st)}
-                    className={`px-3 py-1.5 rounded transition ${
-                      filtroEstadoStock === st ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {st}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMostrarAgotadosCatalogo(!mostrarAgotadosCatalogo)}
+                  className={`px-3 py-1.5 rounded-lg border text-[11px] font-bold transition ${
+                    mostrarAgotadosCatalogo
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+                  }`}
+                >
+                  {mostrarAgotadosCatalogo ? '👁️ Ocultando Agotados (Ver solo activos)' : '🙈 Agotados Ocultos (Ver agotados)'}
+                </button>
+
+                <div className="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
+                  {['Disponibles', 'Baja cantidad', 'Agotado', 'Todos'].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => {
+                        setFiltroEstadoStock(st);
+                        if (st === 'Agotado' || st === 'Todos') setMostrarAgotadosCatalogo(true);
+                      }}
+                      className={`px-3 py-1.5 rounded transition ${
+                        filtroEstadoStock === st ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -2098,7 +2144,6 @@ function AdminDashboard() {
                         </p>
                         <p className="font-bold text-emerald-400">Precio: Q{p.precioMinorista} {p.tipoPrecioMayorista === 'pieza' ? `| Mayoreo Pieza: Q{p.precioPiezaMayorista}` : '| Mayoreo: Por Gramo'}</p>
                         
-                        {/* DETALLE DE VARIANTES CON SUS SKU / BARCODE */}
                         {p.variantes && p.variantes.length > 0 && (
                           <div className="pt-2 border-t border-slate-800 space-y-1">
                             <span className="text-[10px] uppercase font-bold text-slate-400 block">Variantes / Tallas:</span>
@@ -2405,7 +2450,6 @@ function AdminDashboard() {
                 <h3 className="font-bold uppercase text-amber-400 border-b border-slate-800 pb-2">🖼 Imágenes Institucionales (Logo y Banner)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   
-                  {/* LOGO */}
                   <div className="space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
                     <label className="font-bold block text-slate-300">Logotipo de la Tienda:</label>
                     <div className="flex items-center space-x-3">
@@ -2433,7 +2477,6 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* BANNER */}
                   <div className="space-y-2 bg-slate-950 p-4 rounded-xl border border-slate-800">
                     <label className="font-bold block text-slate-300">Imagen Principal de Banner (Hero):</label>
                     <div className="flex items-center space-x-3">

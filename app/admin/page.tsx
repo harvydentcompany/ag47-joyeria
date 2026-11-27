@@ -471,12 +471,18 @@ function AdminDashboard() {
 
   const [productos, setProductos] = useState<any[]>([]);
 
-  // ESTADOS PARA VERIFICACIÓN DE INVENTARIO POR ESCANEO
+  // ESTADOS PARA VERIFICACIÓN DE INVENTARIO POR ESCANEO (LOTE SIN GUARDAR + NO ESCANEADAS)
   const [codigoEscaneo, setCodigoEscaneo] = useState('');
   const [productoEscaneadoId, setProductoEscaneadoId] = useState<number | null>(null);
   const [varianteEscaneadaIdx, setVarianteEscaneadaIdx] = useState<number>(0);
   const [mensajeEscaneo, setMensajeEscaneo] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
-  const [verificadosSesion, setVerificadosSesion] = useState<{ productoId: number; varianteIdx: number; estado: 'Disponible' | 'Agotado'; stock: number; hora: string }[]>([]);
+  const [escaneadasSinGuardar, setEscaneadasSinGuardar] = useState<{
+    productoId: number;
+    varianteIdx: number;
+    stockPendiente: number;
+    estadoPendiente: 'Disponible' | 'Sin Inventario';
+    hora: string;
+  }[]>([]);
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
   const [filtroNoEscaneadas, setFiltroNoEscaneadas] = useState('');
   const [categoriaNoEscaneadas, setCategoriaNoEscaneadas] = useState('Todas');
@@ -518,8 +524,54 @@ function AdminDashboard() {
     }
   }, [seccion]);
 
-  const sincronizarListaProductosVerificacion = async (listaActualizada: any[], productosAfectados: any[]) => {
+  const agregarOActualizarEnSeccionSinGuardar = (
+    prodId: number,
+    varIdx: number,
+    stockPendiente: number,
+    estadoPendiente: 'Disponible' | 'Sin Inventario'
+  ) => {
+    const horaStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setEscaneadasSinGuardar(prev => {
+      const existentes = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
+      return [{ productoId: prodId, varianteIdx: varIdx, stockPendiente, estadoPendiente, hora: horaStr }, ...existentes];
+    });
+  };
+
+  const quitarDeSeccionSinGuardar = (prodId: number, varIdx: number) => {
+    setEscaneadasSinGuardar(prev => prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx)));
+  };
+
+  const guardarPiezasEscaneadasEnSupabase = async () => {
+    if (escaneadasSinGuardar.length === 0) return;
     setGuardandoVerificacion(true);
+
+    const mapaCambios = new Map<number, Map<number, number>>();
+    escaneadasSinGuardar.forEach((reg) => {
+      if (!mapaCambios.has(reg.productoId)) {
+        mapaCambios.set(reg.productoId, new Map());
+      }
+      mapaCambios.get(reg.productoId)!.set(reg.varianteIdx, Number(reg.stockPendiente || 0));
+    });
+
+    const productosAfectados: any[] = [];
+    const listaActualizada = productos.map((p: any) => {
+      const cambiosVar = mapaCambios.get(p.id);
+      if (!cambiosVar) return p;
+      const vars = Array.isArray(p.variantes) && p.variantes.length > 0
+        ? [...p.variantes]
+        : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+
+      cambiosVar.forEach((nuevoStock, vIdx) => {
+        if (vars[vIdx]) {
+          vars[vIdx] = { ...vars[vIdx], stock: nuevoStock };
+        }
+      });
+
+      const prodActualizado = { ...p, variantes: vars };
+      productosAfectados.push(prodActualizado);
+      return prodActualizado;
+    });
+
     setProductos(listaActualizada);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(listaActualizada));
 
@@ -539,24 +591,20 @@ function AdminDashboard() {
     }));
 
     const { error } = await supabase.from('productos').upsert(payloads);
-
     setGuardandoVerificacion(false);
+
     if (error) {
       setMensajeEscaneo({ tipo: 'err', texto: 'Guardado local, pero error en Supabase: ' + error.message });
+      return;
     }
-  };
 
-  const sincronizarProductoVerificado = async (prodActualizado: any) => {
-    const listaActualizada = productos.map((item: any) => item.id === prodActualizado.id ? prodActualizado : item);
-    await sincronizarListaProductosVerificacion(listaActualizada, [prodActualizado]);
-  };
-
-  const registrarVerificacionSesion = (prodId: number, varIdx: number, nuevoStock: number, estadoMarca: 'Disponible' | 'Agotado') => {
-    const horaStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setVerificadosSesion(prev => {
-      const filtrados = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
-      return [{ productoId: prodId, varianteIdx: varIdx, estado: estadoMarca, stock: nuevoStock, hora: horaStr }, ...filtrados];
+    const totalGuardadas = escaneadasSinGuardar.length;
+    setEscaneadasSinGuardar([]);
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `¡Guardadas ${totalGuardadas} pieza(s) escaneadas en Supabase y catálogo!`
     });
+    inputEscaneoRef.current?.focus();
   };
 
   const obtenerStockTotalProducto = (p: any) => {
@@ -623,65 +671,79 @@ function AdminDashboard() {
     }
 
     const { variantes: vars, idx: varIdxFinal } = elegirVarianteConPrioridad(elegidaFinal.prod.variantes, elegidaFinal.varIdx);
-    const prodConVariantes = { ...elegidaFinal.prod, variantes: vars };
-    setProductoEscaneadoId(prodConVariantes.id);
+    setProductoEscaneadoId(elegidaFinal.prod.id);
     setVarianteEscaneadaIdx(varIdxFinal);
-    const stockActualVar = Number(vars[varIdxFinal]?.stock || 0);
+
+    const pendienteExistente = escaneadasSinGuardar.find(
+      (r) => r.productoId === elegidaFinal.prod.id && r.varianteIdx === varIdxFinal
+    );
+    const stockRef = pendienteExistente
+      ? Number(pendienteExistente.stockPendiente || 0)
+      : Number(vars[varIdxFinal]?.stock || 0);
+    const estadoRef: 'Disponible' | 'Sin Inventario' = stockRef > 0 ? 'Disponible' : 'Sin Inventario';
+
+    agregarOActualizarEnSeccionSinGuardar(elegidaFinal.prod.id, varIdxFinal, stockRef, estadoRef);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Escaneado (priorizando disponible): ${prodConVariantes.nombre} (${vars[varIdxFinal]?.medida || 'Estándar'}) — Stock: ${stockActualVar}`
+      texto: `Agregada a Piezas Escaneadas (sin guardar): ${elegidaFinal.prod.nombre} (${vars[varIdxFinal]?.medida || 'Estándar'}) — Stock: ${stockRef}`
     });
-    registrarVerificacionSesion(prodConVariantes.id, varIdxFinal, stockActualVar, stockActualVar > 0 ? 'Disponible' : 'Agotado');
     setCodigoEscaneo('');
     inputEscaneoRef.current?.focus();
   };
 
-  const cambiarCantidadVerificacion = async (delta: number, valorDirecto?: number) => {
+  const obtenerStockPendienteActual = (prodId: number, varIdx: number, prod: any) => {
+    const pendiente = escaneadasSinGuardar.find(
+      (r) => r.productoId === prodId && r.varianteIdx === varIdx
+    );
+    if (pendiente) return Number(pendiente.stockPendiente || 0);
+    const vars = Array.isArray(prod?.variantes) && prod.variantes.length > 0
+      ? prod.variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+    return Number(vars[varIdx]?.stock || 0);
+  };
+
+  const cambiarCantidadVerificacion = (delta: number, valorDirecto?: number) => {
     const prod = productos.find((p: any) => p.id === productoEscaneadoId);
     if (!prod) return;
-    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
-    const actual = Number(vars[varianteEscaneadaIdx]?.stock || 0);
+    const vars = Array.isArray(prod.variantes) && prod.variantes.length > 0
+      ? prod.variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+    const actual = obtenerStockPendienteActual(prod.id, varianteEscaneadaIdx, prod);
     const nuevaCant = valorDirecto !== undefined ? Math.max(0, Math.floor(valorDirecto)) : Math.max(0, actual + delta);
-    vars[varianteEscaneadaIdx] = { ...vars[varianteEscaneadaIdx], stock: nuevaCant };
-    const prodActualizado = { ...prod, variantes: vars };
-    await sincronizarProductoVerificado(prodActualizado);
-    registrarVerificacionSesion(prod.id, varianteEscaneadaIdx, nuevaCant, nuevaCant > 0 ? 'Disponible' : 'Agotado');
+    const estadoMarca: 'Disponible' | 'Sin Inventario' = nuevaCant > 0 ? 'Disponible' : 'Sin Inventario';
+
+    agregarOActualizarEnSeccionSinGuardar(prod.id, varianteEscaneadaIdx, nuevaCant, estadoMarca);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Cantidad actualizada a ${nuevaCant} en ${prod.nombre} (${vars[varianteEscaneadaIdx]?.medida || 'Estándar'}).`
+      texto: `Pendiente de guardar: ${prod.nombre} (${vars[varianteEscaneadaIdx]?.medida || 'Estándar'}) → ${nuevaCant} pzas.`
     });
     inputEscaneoRef.current?.focus();
   };
 
-  const marcarEstadoVerificacion = async (nuevoEstado: 'Disponible' | 'Agotado') => {
+  const marcarEstadoVerificacion = (nuevoEstado: 'Disponible' | 'Sin Inventario') => {
     const prod = productos.find((p: any) => p.id === productoEscaneadoId);
     if (!prod) return;
-    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
-    const stockActual = Number(vars[varianteEscaneadaIdx]?.stock || 0);
-    const nuevaCant = nuevoEstado === 'Agotado' ? 0 : (stockActual > 0 ? stockActual : 1);
-    vars[varianteEscaneadaIdx] = { ...vars[varianteEscaneadaIdx], stock: nuevaCant };
-    const prodActualizado = { ...prod, variantes: vars };
-    await sincronizarProductoVerificado(prodActualizado);
-    registrarVerificacionSesion(prod.id, varianteEscaneadaIdx, nuevaCant, nuevoEstado);
+    const stockActual = obtenerStockPendienteActual(prod.id, varianteEscaneadaIdx, prod);
+    const nuevaCant = nuevoEstado === 'Sin Inventario' ? 0 : (stockActual > 0 ? stockActual : 1);
+
+    agregarOActualizarEnSeccionSinGuardar(prod.id, varianteEscaneadaIdx, nuevaCant, nuevoEstado);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Marcado como ${nuevoEstado} (${nuevaCant} pzas) — ${prod.nombre}.`
+      texto: `Pendiente de guardar como ${nuevoEstado} (${nuevaCant} pzas) — ${prod.nombre}.`
     });
     inputEscaneoRef.current?.focus();
   };
 
-  const marcarVarianteNoEscaneadaAgotada = async (prodId: number, varIdx: number) => {
+  const marcarVarianteNoEscaneadaSinInventario = (prodId: number, varIdx: number) => {
     const prod = productos.find((p: any) => p.id === prodId);
     if (!prod) return;
-    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
-    if (!vars[varIdx]) return;
-    vars[varIdx] = { ...vars[varIdx], stock: 0 };
-    const prodActualizado = { ...prod, variantes: vars };
-    await sincronizarProductoVerificado(prodActualizado);
-    registrarVerificacionSesion(prod.id, varIdx, 0, 'Agotado');
+    const vars = Array.isArray(prod.variantes) && prod.variantes.length > 0
+      ? prod.variantes
+      : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+    agregarOActualizarEnSeccionSinGuardar(prodId, varIdx, 0, 'Sin Inventario');
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Marcado como Agotado: ${prod.nombre} (${vars[varIdx]?.medida || 'Estándar'}).`
+      texto: `Marcada Sin Inventario (pendiente de guardar): ${prod.nombre} (${vars[varIdx]?.medida || 'Estándar'}).`
     });
   };
 
@@ -697,10 +759,10 @@ function AdminDashboard() {
 
       vars.forEach((v: any, vIdx: number) => {
         if (Number(v.stock || 0) <= 0) return;
-        const yaEscaneada = verificadosSesion.some(
+        const yaEnLoteSinGuardar = escaneadasSinGuardar.some(
           (reg) => reg.productoId === p.id && reg.varianteIdx === vIdx
         );
-        if (yaEscaneada) return;
+        if (yaEnLoteSinGuardar) return;
 
         const coincideTexto = !texto ||
           (p.nombre && p.nombre.toLowerCase().includes(texto)) ||
@@ -719,36 +781,17 @@ function AdminDashboard() {
     return filas;
   })();
 
-  const marcarTodasNoEscaneadasAgotadas = async () => {
+  const marcarTodasNoEscaneadasSinInventario = () => {
     if (piezasNoEscaneadas.length === 0) return;
-    if (!confirm(`¿Marcar ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas como Agotado (stock 0)?`)) return;
+    if (!confirm(`¿Pasar ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas a Sin Inventario (stock 0) en el lote pendiente de guardar?`)) return;
 
-    const mapaPorProd = new Map<number, Set<number>>();
     piezasNoEscaneadas.forEach(({ prod, varIdx }) => {
-      if (!mapaPorProd.has(prod.id)) mapaPorProd.set(prod.id, new Set());
-      mapaPorProd.get(prod.id)!.add(varIdx);
+      agregarOActualizarEnSeccionSinGuardar(prod.id, varIdx, 0, 'Sin Inventario');
     });
 
-    const afectados: any[] = [];
-    const listaActualizada = productos.map((p: any) => {
-      const indicesSet = mapaPorProd.get(p.id);
-      if (!indicesSet) return p;
-      const vars = [...(p.variantes || [])];
-      indicesSet.forEach((idx) => {
-        if (vars[idx]) {
-          vars[idx] = { ...vars[idx], stock: 0 };
-          registrarVerificacionSesion(p.id, idx, 0, 'Agotado');
-        }
-      });
-      const actualizado = { ...p, variantes: vars };
-      afectados.push(actualizado);
-      return actualizado;
-    });
-
-    await sincronizarListaProductosVerificacion(listaActualizada, afectados);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Se marcaron ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas como Agotado.`
+      texto: `Se pasaron ${piezasNoEscaneadas.length} pieza(s) a Sin Inventario (pendientes de guardar).`
     });
   };
 
@@ -1316,7 +1359,9 @@ function AdminDashboard() {
       : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])
     : [];
   const varianteVerificacionActual = variantesVerificacionActual[varianteEscaneadaIdx] || variantesVerificacionActual[0] || null;
-  const stockVerificacionActual = Number(varianteVerificacionActual?.stock || 0);
+  const stockVerificacionActual = productoVerificadoActual
+    ? obtenerStockPendienteActual(productoVerificadoActual.id, varianteEscaneadaIdx, productoVerificadoActual)
+    : 0;
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
@@ -2265,21 +2310,21 @@ function AdminDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-xl font-bold font-serif text-amber-400">Verificación de Inventario por Escaneo</h2>
-                <p className="text-slate-400">Escanea códigos de barras o SKU para revisar la pieza, marcar Disponible o Agotado y ajustar cantidades.</p>
+                <p className="text-slate-400">Escanea piezas para reunirlas en Piezas Escaneadas (sin guardar) y marca sin inventario lo que no escaneaste.</p>
               </div>
               <div className="flex items-center gap-2">
                 {guardandoVerificacion && (
                   <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1 rounded-lg font-mono text-[11px]">
-                    Sincronizando...
+                    Guardando en Supabase...
                   </span>
                 )}
-                {verificadosSesion.length > 0 && (
+                {escaneadasSinGuardar.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setVerificadosSesion([])}
+                    onClick={() => setEscaneadasSinGuardar([])}
                     className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[11px]"
                   >
-                    Limpiar Turno ({verificadosSesion.length})
+                    Descartar lote ({escaneadasSinGuardar.length})
                   </button>
                 )}
               </div>
@@ -2357,7 +2402,7 @@ function AdminDashboard() {
                         ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
                         : 'bg-rose-600/20 text-rose-300 border-rose-500/40'
                     }`}>
-                      {stockVerificacionActual > 0 ? 'Disponible' : 'Agotado'}
+                      {stockVerificacionActual > 0 ? 'Disponible' : 'Sin Inventario'}
                     </span>
                   </div>
 
@@ -2377,16 +2422,16 @@ function AdminDashboard() {
                                 : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
                             }`}
                           >
-                            {v.medida || `Variante ${idx + 1}`} ({Number(v.stock || 0)} pzas)
+                            {v.medida || `Variante ${idx + 1}`} ({obtenerStockPendienteActual(productoVerificadoActual.id, idx, productoVerificadoActual)} pzas)
                           </button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* BOTONES DISPONIBLE / AGOTADO */}
+                  {/* BOTONES DISPONIBLE / SIN INVENTARIO */}
                   <div className="space-y-1.5 pt-1">
-                    <span className="block text-[10px] uppercase font-bold text-slate-400">Estado Rápido:</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Estado Rápido (Pendiente de Guardar):</span>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         type="button"
@@ -2401,21 +2446,21 @@ function AdminDashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => marcarEstadoVerificacion('Agotado')}
+                        onClick={() => marcarEstadoVerificacion('Sin Inventario')}
                         className={`py-3 rounded-xl font-black uppercase tracking-wider text-xs transition shadow ${
                           stockVerificacionActual === 0
                             ? 'bg-rose-600 hover:bg-rose-500 text-white ring-2 ring-rose-400/40'
                             : 'bg-slate-800 hover:bg-rose-700 text-rose-300 hover:text-white border border-rose-600/40'
                         }`}
                       >
-                        ✕ Agotado (0)
+                        ✕ Sin Inventario (0)
                       </button>
                     </div>
                   </div>
 
                   {/* CONTROLES DE CANTIDAD (- / + / DIRECTO) */}
                   <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                    <span className="block text-[10px] uppercase font-bold text-slate-400">Ajustar Cantidad en Inventario:</span>
+                    <span className="block text-[10px] uppercase font-bold text-slate-400">Ajustar Cantidad Pendiente:</span>
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
@@ -2444,6 +2489,90 @@ function AdminDashboard() {
               </div>
             )}
 
+            {/* SECCIÓN APARTADA: PIEZAS ESCANEADAS (SIN GUARDAR) */}
+            <div className="bg-slate-900 border-2 border-amber-500/50 rounded-xl overflow-hidden shadow-lg">
+              <div className="p-4 border-b border-slate-800 bg-amber-500/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="font-bold uppercase text-amber-400 text-xs">
+                    📥 Piezas Escaneadas — Sin Guardar ({escaneadasSinGuardar.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Aquí quedan las piezas escaneadas o marcadas en este turno hasta que pulses Guardar en Supabase.
+                  </p>
+                </div>
+
+                {escaneadasSinGuardar.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={guardandoVerificacion}
+                    onClick={guardarPiezasEscaneadasEnSupabase}
+                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2.5 rounded-lg text-xs uppercase tracking-wider shadow transition"
+                  >
+                    {guardandoVerificacion ? 'Guardando...' : `💾 Guardar Piezas Escaneadas (${escaneadasSinGuardar.length})`}
+                  </button>
+                )}
+              </div>
+
+              {escaneadasSinGuardar.length === 0 ? (
+                <p className="p-6 text-center text-slate-500">
+                  Aún no hay piezas escaneadas pendientes de guardar en esta sección.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-800 max-h-80 overflow-y-auto">
+                  {escaneadasSinGuardar.map((reg, i) => {
+                    const prodRef = productos.find((p: any) => p.id === reg.productoId);
+                    const varRef = prodRef?.variantes?.[reg.varianteIdx];
+                    return (
+                      <div
+                        key={`${reg.productoId}_${reg.varianteIdx}_${i}`}
+                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/50 transition"
+                      >
+                        <div
+                          onClick={() => {
+                            setProductoEscaneadoId(reg.productoId);
+                            setVarianteEscaneadaIdx(reg.varianteIdx);
+                          }}
+                          className="flex items-center space-x-3 cursor-pointer flex-1"
+                        >
+                          <img
+                            src={prodRef?.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
+                            alt=""
+                            className="w-11 h-11 object-cover rounded border border-slate-700 shrink-0"
+                          />
+                          <div>
+                            <p className="font-bold text-white text-sm">
+                              {prodRef?.nombre || 'Producto'} {varRef?.medida ? `(${varRef.medida})` : ''}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-400">
+                              SKU: {varRef?.sku || prodRef?.sku || 'N/A'} • {reg.hora}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-mono font-bold text-amber-400">Stock: {reg.stockPendiente}</span>
+                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                            reg.estadoPendiente === 'Disponible'
+                              ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-rose-600/20 text-rose-300 border-rose-500/40'
+                          }`}>
+                            {reg.estadoPendiente}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => quitarDeSeccionSinGuardar(reg.productoId, reg.varianteIdx)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-[10px] font-bold"
+                          >
+                            Quitar
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* LISTADO APARTE: PIEZAS NO ESCANEADAS */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
               <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
@@ -2452,17 +2581,17 @@ function AdminDashboard() {
                     ⏳ Piezas No Escaneadas ({piezasNoEscaneadas.length})
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Piezas y variantes con stock que aún no has escaneado en esta sesión.
+                    Piezas y variantes con stock que aún no has escaneado; márcalas sin inventario para pasarlas al lote pendiente de guardar.
                   </p>
                 </div>
 
                 {piezasNoEscaneadas.length > 0 && (
                   <button
                     type="button"
-                    onClick={marcarTodasNoEscaneadasAgotadas}
+                    onClick={marcarTodasNoEscaneadasSinInventario}
                     className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-lg text-[11px] transition shadow"
                   >
-                    ✕ Marcar todas las visibles como agotadas ({piezasNoEscaneadas.length})
+                    ✕ Marcar todas las visibles sin inventario ({piezasNoEscaneadas.length})
                   </button>
                 )}
               </div>
@@ -2521,69 +2650,14 @@ function AdminDashboard() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => marcarVarianteNoEscaneadaAgotada(prod.id, varIdx)}
+                          onClick={() => marcarVarianteNoEscaneadaSinInventario(prod.id, varIdx)}
                           className="bg-rose-600/25 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold px-3 py-1.5 rounded-lg text-[11px] transition"
                         >
-                          Marcar como agotado
+                          Marcar sin inventario
                         </button>
                       </div>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* HISTORIAL DE ESCANEOS DE LA SESIÓN */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="font-bold uppercase text-amber-400 text-[11px]">
-                  📋 Piezas Verificadas en Esta Sesión ({verificadosSesion.length})
-                </h3>
-              </div>
-              {verificadosSesion.length === 0 ? (
-                <p className="p-6 text-center text-slate-500">Aún no has escaneado piezas en este turno.</p>
-              ) : (
-                <div className="divide-y divide-slate-800">
-                  {verificadosSesion.map((reg, i) => {
-                    const prodRef = productos.find((p: any) => p.id === reg.productoId);
-                    const varRef = prodRef?.variantes?.[reg.varianteIdx];
-                    return (
-                      <div
-                        key={i}
-                        onClick={() => {
-                          setProductoEscaneadoId(reg.productoId);
-                          setVarianteEscaneadaIdx(reg.varianteIdx);
-                        }}
-                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/60 cursor-pointer transition"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={prodRef?.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
-                            alt=""
-                            className="w-10 h-10 object-cover rounded border border-slate-700"
-                          />
-                          <div>
-                            <p className="font-bold text-white">
-                              {prodRef?.nombre || 'Producto'} {varRef?.medida ? `(${varRef.medida})` : ''}
-                            </p>
-                            <p className="text-[10px] font-mono text-slate-400">
-                              SKU: {varRef?.sku || prodRef?.sku || 'N/A'} • {reg.hora}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <span className="font-mono font-bold text-amber-400">Stock: {reg.stock}</span>
-                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            reg.estado === 'Disponible'
-                              ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-rose-600/20 text-rose-300 border border-rose-500/40'
-                          }`}>
-                            {reg.estado}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>

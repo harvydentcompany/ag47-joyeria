@@ -478,6 +478,8 @@ function AdminDashboard() {
   const [mensajeEscaneo, setMensajeEscaneo] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
   const [verificadosSesion, setVerificadosSesion] = useState<{ productoId: number; varianteIdx: number; estado: 'Disponible' | 'Agotado'; stock: number; hora: string }[]>([]);
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
+  const [filtroNoEscaneadas, setFiltroNoEscaneadas] = useState('');
+  const [categoriaNoEscaneadas, setCategoriaNoEscaneadas] = useState('Todas');
   const inputEscaneoRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -516,13 +518,12 @@ function AdminDashboard() {
     }
   }, [seccion]);
 
-  const sincronizarProductoVerificado = async (prodActualizado: any) => {
+  const sincronizarListaProductosVerificacion = async (listaActualizada: any[], productosAfectados: any[]) => {
     setGuardandoVerificacion(true);
-    const listaActualizada = productos.map((item: any) => item.id === prodActualizado.id ? prodActualizado : item);
     setProductos(listaActualizada);
     localStorage.setItem('ag47_inventario_admin', JSON.stringify(listaActualizada));
 
-    const { error } = await supabase.from('productos').upsert([{
+    const payloads = productosAfectados.map((prodActualizado: any) => ({
       id: prodActualizado.id,
       sku: prodActualizado.sku,
       barcode: prodActualizado.barcode || '',
@@ -535,12 +536,19 @@ function AdminDashboard() {
       precio_pieza_mayorista: Number(prodActualizado.precioPiezaMayorista || 0),
       fotos: prodActualizado.fotos || [],
       variantes: prodActualizado.variantes || []
-    }]);
+    }));
+
+    const { error } = await supabase.from('productos').upsert(payloads);
 
     setGuardandoVerificacion(false);
     if (error) {
       setMensajeEscaneo({ tipo: 'err', texto: 'Guardado local, pero error en Supabase: ' + error.message });
     }
+  };
+
+  const sincronizarProductoVerificado = async (prodActualizado: any) => {
+    const listaActualizada = productos.map((item: any) => item.id === prodActualizado.id ? prodActualizado : item);
+    await sincronizarListaProductosVerificacion(listaActualizada, [prodActualizado]);
   };
 
   const registrarVerificacionSesion = (prodId: number, varIdx: number, nuevoStock: number, estadoMarca: 'Disponible' | 'Agotado') => {
@@ -660,6 +668,88 @@ function AdminDashboard() {
       texto: `Marcado como ${nuevoEstado} (${nuevaCant} pzas) — ${prod.nombre}.`
     });
     inputEscaneoRef.current?.focus();
+  };
+
+  const marcarVarianteNoEscaneadaAgotada = async (prodId: number, varIdx: number) => {
+    const prod = productos.find((p: any) => p.id === prodId);
+    if (!prod) return;
+    const vars = [...(prod.variantes || [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }])];
+    if (!vars[varIdx]) return;
+    vars[varIdx] = { ...vars[varIdx], stock: 0 };
+    const prodActualizado = { ...prod, variantes: vars };
+    await sincronizarProductoVerificado(prodActualizado);
+    registrarVerificacionSesion(prod.id, varIdx, 0, 'Agotado');
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `Marcado como Agotado: ${prod.nombre} (${vars[varIdx]?.medida || 'Estándar'}).`
+    });
+  };
+
+  const piezasNoEscaneadas = (() => {
+    const texto = filtroNoEscaneadas.toLowerCase().trim();
+    const filas: { prod: any; varIdx: number; variante: any }[] = [];
+
+    productos.forEach((p: any) => {
+      if (categoriaNoEscaneadas !== 'Todas' && p.categoria !== categoriaNoEscaneadas) return;
+      const vars = Array.isArray(p.variantes) && p.variantes.length > 0
+        ? p.variantes
+        : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
+
+      vars.forEach((v: any, vIdx: number) => {
+        if (Number(v.stock || 0) <= 0) return;
+        const yaEscaneada = verificadosSesion.some(
+          (reg) => reg.productoId === p.id && reg.varianteIdx === vIdx
+        );
+        if (yaEscaneada) return;
+
+        const coincideTexto = !texto ||
+          (p.nombre && p.nombre.toLowerCase().includes(texto)) ||
+          (p.sku && p.sku.toLowerCase().includes(texto)) ||
+          (p.barcode && p.barcode.toLowerCase().includes(texto)) ||
+          (v.sku && v.sku.toLowerCase().includes(texto)) ||
+          (v.barcode && v.barcode.toLowerCase().includes(texto)) ||
+          (v.medida && v.medida.toLowerCase().includes(texto));
+
+        if (coincideTexto) {
+          filas.push({ prod: p, varIdx: vIdx, variante: v });
+        }
+      });
+    });
+
+    return filas;
+  })();
+
+  const marcarTodasNoEscaneadasAgotadas = async () => {
+    if (piezasNoEscaneadas.length === 0) return;
+    if (!confirm(`¿Marcar ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas como Agotado (stock 0)?`)) return;
+
+    const mapaPorProd = new Map<number, Set<number>>();
+    piezasNoEscaneadas.forEach(({ prod, varIdx }) => {
+      if (!mapaPorProd.has(prod.id)) mapaPorProd.set(prod.id, new Set());
+      mapaPorProd.get(prod.id)!.add(varIdx);
+    });
+
+    const afectados: any[] = [];
+    const listaActualizada = productos.map((p: any) => {
+      const indicesSet = mapaPorProd.get(p.id);
+      if (!indicesSet) return p;
+      const vars = [...(p.variantes || [])];
+      indicesSet.forEach((idx) => {
+        if (vars[idx]) {
+          vars[idx] = { ...vars[idx], stock: 0 };
+          registrarVerificacionSesion(p.id, idx, 0, 'Agotado');
+        }
+      });
+      const actualizado = { ...p, variantes: vars };
+      afectados.push(actualizado);
+      return actualizado;
+    });
+
+    await sincronizarListaProductosVerificacion(listaActualizada, afectados);
+    setMensajeEscaneo({
+      tipo: 'ok',
+      texto: `Se marcaron ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas como Agotado.`
+    });
   };
 
   const [nuevoProd, setNuevoProd] = useState({
@@ -2353,6 +2443,95 @@ function AdminDashboard() {
                 </div>
               </div>
             )}
+
+            {/* LISTADO APARTE: PIEZAS NO ESCANEADAS */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <div>
+                  <h3 className="font-bold uppercase text-amber-400 text-[11px]">
+                    ⏳ Piezas No Escaneadas ({piezasNoEscaneadas.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Piezas y variantes con stock que aún no has escaneado en esta sesión.
+                  </p>
+                </div>
+
+                {piezasNoEscaneadas.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={marcarTodasNoEscaneadasAgotadas}
+                    className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-lg text-[11px] transition shadow"
+                  >
+                    ✕ Marcar todas las visibles como agotadas ({piezasNoEscaneadas.length})
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={filtroNoEscaneadas}
+                  onChange={(e) => setFiltroNoEscaneadas(e.target.value)}
+                  placeholder="Filtrar no escaneadas por nombre, SKU, barcode o talla..."
+                  className="flex-1 p-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                />
+                <select
+                  value={categoriaNoEscaneadas}
+                  onChange={(e) => setCategoriaNoEscaneadas(e.target.value)}
+                  className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs"
+                >
+                  <option value="Todas">Todas las categorías</option>
+                  {categoriasBase.map((c: string) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {piezasNoEscaneadas.length === 0 ? (
+                <p className="p-6 text-center text-slate-500">
+                  No hay piezas pendientes con stock por escanear bajo este filtro.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-800 max-h-96 overflow-y-auto">
+                  {piezasNoEscaneadas.map(({ prod, varIdx, variante }) => (
+                    <div
+                      key={`${prod.id}_${varIdx}`}
+                      className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <img
+                          src={prod.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
+                          alt={prod.nombre}
+                          className="w-11 h-11 object-cover rounded border border-slate-700 shrink-0"
+                        />
+                        <div>
+                          <p className="font-bold text-white text-sm">
+                            {prod.nombre} {variante?.medida ? `(${variante.medida})` : ''}
+                          </p>
+                          <p className="text-[10px] font-mono text-slate-400">
+                            {prod.categoria} • SKU: {variante?.sku || prod.sku || 'N/A'}
+                            {(variante?.barcode || prod.barcode) ? ` • Barcode: ${variante?.barcode || prod.barcode}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-mono font-bold text-emerald-400">
+                          Stock: {Number(variante?.stock || 0)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => marcarVarianteNoEscaneadaAgotada(prod.id, varIdx)}
+                          className="bg-rose-600/25 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold px-3 py-1.5 rounded-lg text-[11px] transition"
+                        >
+                          Marcar como agotado
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* HISTORIAL DE ESCANEOS DE LA SESIÓN */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

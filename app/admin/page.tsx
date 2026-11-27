@@ -471,22 +471,47 @@ function AdminDashboard() {
 
   const [productos, setProductos] = useState<any[]>([]);
 
-  // ESTADOS PARA VERIFICACIÓN DE INVENTARIO POR ESCANEO (LOTE SIN GUARDAR + NO ESCANEADAS)
-  const [codigoEscaneo, setCodigoEscaneo] = useState('');
-  const [productoEscaneadoId, setProductoEscaneadoId] = useState<number | null>(null);
-  const [varianteEscaneadaIdx, setVarianteEscaneadaIdx] = useState<number>(0);
-  const [mensajeEscaneo, setMensajeEscaneo] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
-  const [escaneadasSinGuardar, setEscaneadasSinGuardar] = useState<{
+  // ESTADOS PARA VERIFICACIÓN DE INVENTARIO:
+  // 1) Escaneado Pendiente de Guardar (persistido en localStorage para no perderlo si recargas tras un error)
+  // 2) Escaneado en Esta Sesión (historial de la sesión actual)
+  // 3) Piezas Sin Escanear (pendientes con stock que aún no están en pendiente de guardar)
+  type RegistroVerificacion = {
     productoId: number;
     varianteIdx: number;
     stockPendiente: number;
     estadoPendiente: 'Disponible' | 'Sin Inventario';
     hora: string;
-  }[]>([]);
+  };
+
+  const [codigoEscaneo, setCodigoEscaneo] = useState('');
+  const [productoEscaneadoId, setProductoEscaneadoId] = useState<number | null>(null);
+  const [varianteEscaneadaIdx, setVarianteEscaneadaIdx] = useState<number>(0);
+  const [mensajeEscaneo, setMensajeEscaneo] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null);
+
+  const [pendienteGuardar, setPendienteGuardar] = useState<RegistroVerificacion[]>(() => {
+    if (typeof window !== 'undefined') {
+      const guardado = localStorage.getItem('ag47_verificacion_pendiente_guardar');
+      if (guardado) {
+        try {
+          const parsed = JSON.parse(guardado);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+
+  const [escaneadoEstaSesion, setEscaneadoEstaSesion] = useState<RegistroVerificacion[]>([]);
   const [guardandoVerificacion, setGuardandoVerificacion] = useState(false);
-  const [filtroNoEscaneadas, setFiltroNoEscaneadas] = useState('');
-  const [categoriaNoEscaneadas, setCategoriaNoEscaneadas] = useState('Todas');
+  const [filtroSinEscanear, setFiltroSinEscanear] = useState('');
+  const [categoriaSinEscanear, setCategoriaSinEscanear] = useState('Todas');
   const inputEscaneoRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('ag47_verificacion_pendiente_guardar', JSON.stringify(pendienteGuardar));
+    }
+  }, [pendienteGuardar]);
 
   useEffect(() => {
     const cargarProductosSupabase = async () => {
@@ -524,87 +549,118 @@ function AdminDashboard() {
     }
   }, [seccion]);
 
-  const agregarOActualizarEnSeccionSinGuardar = (
+  const registrarEnPendienteYSesion = (
     prodId: number,
     varIdx: number,
     stockPendiente: number,
     estadoPendiente: 'Disponible' | 'Sin Inventario'
   ) => {
     const horaStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setEscaneadasSinGuardar(prev => {
-      const existentes = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
-      return [{ productoId: prodId, varianteIdx: varIdx, stockPendiente, estadoPendiente, hora: horaStr }, ...existentes];
+    const nuevoRegistro: RegistroVerificacion = {
+      productoId: prodId,
+      varianteIdx: varIdx,
+      stockPendiente,
+      estadoPendiente,
+      hora: horaStr
+    };
+
+    setPendienteGuardar(prev => {
+      const sinDuplicado = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
+      const actualizado = [nuevoRegistro, ...sinDuplicado];
+      localStorage.setItem('ag47_verificacion_pendiente_guardar', JSON.stringify(actualizado));
+      return actualizado;
+    });
+
+    setEscaneadoEstaSesion(prev => {
+      const sinDuplicado = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
+      return [nuevoRegistro, ...sinDuplicado];
     });
   };
 
-  const quitarDeSeccionSinGuardar = (prodId: number, varIdx: number) => {
-    setEscaneadasSinGuardar(prev => prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx)));
+  const quitarDePendienteGuardar = (prodId: number, varIdx: number) => {
+    setPendienteGuardar(prev => {
+      const actualizado = prev.filter(r => !(r.productoId === prodId && r.varianteIdx === varIdx));
+      localStorage.setItem('ag47_verificacion_pendiente_guardar', JSON.stringify(actualizado));
+      return actualizado;
+    });
   };
 
-  const guardarPiezasEscaneadasEnSupabase = async () => {
-    if (escaneadasSinGuardar.length === 0) return;
+  const guardarPendientesEnSupabase = async () => {
+    if (pendienteGuardar.length === 0) return;
     setGuardandoVerificacion(true);
 
-    const mapaCambios = new Map<number, Map<number, number>>();
-    escaneadasSinGuardar.forEach((reg) => {
-      if (!mapaCambios.has(reg.productoId)) {
-        mapaCambios.set(reg.productoId, new Map());
-      }
-      mapaCambios.get(reg.productoId)!.set(reg.varianteIdx, Number(reg.stockPendiente || 0));
-    });
-
-    const productosAfectados: any[] = [];
-    const listaActualizada = productos.map((p: any) => {
-      const cambiosVar = mapaCambios.get(p.id);
-      if (!cambiosVar) return p;
-      const vars = Array.isArray(p.variantes) && p.variantes.length > 0
-        ? [...p.variantes]
-        : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
-
-      cambiosVar.forEach((nuevoStock, vIdx) => {
-        if (vars[vIdx]) {
-          vars[vIdx] = { ...vars[vIdx], stock: nuevoStock };
+    try {
+      const mapaCambios = new Map<number, Map<number, number>>();
+      pendienteGuardar.forEach((reg) => {
+        if (!mapaCambios.has(reg.productoId)) {
+          mapaCambios.set(reg.productoId, new Map());
         }
+        mapaCambios.get(reg.productoId)!.set(reg.varianteIdx, Number(reg.stockPendiente || 0));
       });
 
-      const prodActualizado = { ...p, variantes: vars };
-      productosAfectados.push(prodActualizado);
-      return prodActualizado;
-    });
+      const productosAfectados: any[] = [];
+      const listaActualizada = productos.map((p: any) => {
+        const cambiosVar = mapaCambios.get(p.id);
+        if (!cambiosVar) return p;
+        const vars = Array.isArray(p.variantes) && p.variantes.length > 0
+          ? [...p.variantes]
+          : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
 
-    setProductos(listaActualizada);
-    localStorage.setItem('ag47_inventario_admin', JSON.stringify(listaActualizada));
+        cambiosVar.forEach((nuevoStock, vIdx) => {
+          if (vars[vIdx]) {
+            vars[vIdx] = { ...vars[vIdx], stock: nuevoStock };
+          }
+        });
 
-    const payloads = productosAfectados.map((prodActualizado: any) => ({
-      id: prodActualizado.id,
-      sku: prodActualizado.sku,
-      barcode: prodActualizado.barcode || '',
-      nombre: prodActualizado.nombre,
-      categoria: prodActualizado.categoria,
-      color: prodActualizado.color || '',
-      bano: prodActualizado.bano || 'Sin baño',
-      precio_minorista: Number(prodActualizado.precioMinorista || 0),
-      tipo_precio_mayorista: prodActualizado.tipoPrecioMayorista || 'gramo',
-      precio_pieza_mayorista: Number(prodActualizado.precioPiezaMayorista || 0),
-      fotos: prodActualizado.fotos || [],
-      variantes: prodActualizado.variantes || []
-    }));
+        const prodActualizado = { ...p, variantes: vars };
+        productosAfectados.push(prodActualizado);
+        return prodActualizado;
+      });
 
-    const { error } = await supabase.from('productos').upsert(payloads);
-    setGuardandoVerificacion(false);
+      setProductos(listaActualizada);
+      localStorage.setItem('ag47_inventario_admin', JSON.stringify(listaActualizada));
 
-    if (error) {
-      setMensajeEscaneo({ tipo: 'err', texto: 'Guardado local, pero error en Supabase: ' + error.message });
-      return;
+      const payloads = productosAfectados.map((prodActualizado: any) => ({
+        id: prodActualizado.id,
+        sku: prodActualizado.sku,
+        barcode: prodActualizado.barcode || '',
+        nombre: prodActualizado.nombre,
+        categoria: prodActualizado.categoria,
+        color: prodActualizado.color || '',
+        bano: prodActualizado.bano || 'Sin baño',
+        precio_minorista: Number(prodActualizado.precioMinorista || 0),
+        tipo_precio_mayorista: prodActualizado.tipoPrecioMayorista || 'gramo',
+        precio_pieza_mayorista: Number(prodActualizado.precioPiezaMayorista || 0),
+        fotos: prodActualizado.fotos || [],
+        variantes: prodActualizado.variantes || []
+      }));
+
+      const { error } = await supabase.from('productos').upsert(payloads);
+      setGuardandoVerificacion(false);
+
+      if (error) {
+        setMensajeEscaneo({
+          tipo: 'err',
+          texto: 'Error al guardar en Supabase (tu lote sigue guardado localmente): ' + error.message
+        });
+        return;
+      }
+
+      const totalGuardadas = pendienteGuardar.length;
+      setPendienteGuardar([]);
+      localStorage.removeItem('ag47_verificacion_pendiente_guardar');
+      setMensajeEscaneo({
+        tipo: 'ok',
+        texto: `¡Guardadas ${totalGuardadas} pieza(s) pendientes en Supabase y catálogo!`
+      });
+      inputEscaneoRef.current?.focus();
+    } catch (err: any) {
+      setGuardandoVerificacion(false);
+      setMensajeEscaneo({
+        tipo: 'err',
+        texto: 'Ocurrió un error al guardar (tu lote sigue protegido en memoria local): ' + (err?.message || 'Error desconocido')
+      });
     }
-
-    const totalGuardadas = escaneadasSinGuardar.length;
-    setEscaneadasSinGuardar([]);
-    setMensajeEscaneo({
-      tipo: 'ok',
-      texto: `¡Guardadas ${totalGuardadas} pieza(s) escaneadas en Supabase y catálogo!`
-    });
-    inputEscaneoRef.current?.focus();
   };
 
   const obtenerStockTotalProducto = (p: any) => {
@@ -624,75 +680,86 @@ function AdminDashboard() {
   };
 
   const procesarEscaneoCodigo = (codigoRaw?: string) => {
-    const q = (codigoRaw !== undefined ? codigoRaw : codigoEscaneo).trim().toLowerCase();
-    if (!q) return;
+    try {
+      const q = (codigoRaw !== undefined ? codigoRaw : codigoEscaneo).trim().toLowerCase();
+      if (!q) return;
 
-    let coincidenciaDisponible: { prod: any; varIdx: number } | null = null;
-    let coincidenciaCualquiera: { prod: any; varIdx: number } | null = null;
+      let coincidenciaDisponible: { prod: any; varIdx: number } | null = null;
+      let coincidenciaCualquiera: { prod: any; varIdx: number } | null = null;
 
-    for (let i = 0; i < productos.length; i++) {
-      const p = productos[i];
-      if (Array.isArray(p.variantes)) {
-        for (let vIdx = 0; vIdx < p.variantes.length; vIdx++) {
-          const v = p.variantes[vIdx];
-          const matchVar =
-            (v.barcode && String(v.barcode).trim().toLowerCase() === q) ||
-            (v.sku && String(v.sku).trim().toLowerCase() === q);
-          if (matchVar) {
-            if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: vIdx };
-            if (!coincidenciaDisponible && Number(v.stock || 0) > 0) {
-              coincidenciaDisponible = { prod: p, varIdx: vIdx };
+      for (let i = 0; i < productos.length; i++) {
+        const p = productos[i];
+        if (!p) continue;
+        if (Array.isArray(p.variantes)) {
+          for (let vIdx = 0; vIdx < p.variantes.length; vIdx++) {
+            const v = p.variantes[vIdx];
+            if (!v) continue;
+            const matchVar =
+              (v.barcode && String(v.barcode).trim().toLowerCase() === q) ||
+              (v.sku && String(v.sku).trim().toLowerCase() === q);
+            if (matchVar) {
+              if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: vIdx };
+              if (!coincidenciaDisponible && Number(v.stock || 0) > 0) {
+                coincidenciaDisponible = { prod: p, varIdx: vIdx };
+              }
             }
+          }
+        }
+
+        const matchProd =
+          (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
+          (p.sku && String(p.sku).trim().toLowerCase() === q) ||
+          (p.nombre && String(p.nombre).trim().toLowerCase() === q);
+
+        if (matchProd) {
+          const elegida = elegirVarianteConPrioridad(p.variantes, 0);
+          if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: elegida.idx };
+          if (!coincidenciaDisponible && obtenerStockTotalProducto(p) > 0) {
+            coincidenciaDisponible = { prod: p, varIdx: elegida.idx };
           }
         }
       }
 
-      const matchProd =
-        (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
-        (p.sku && String(p.sku).trim().toLowerCase() === q) ||
-        (p.nombre && String(p.nombre).trim().toLowerCase() === q);
+      const elegidaFinal = coincidenciaDisponible || coincidenciaCualquiera;
 
-      if (matchProd) {
-        const elegida = elegirVarianteConPrioridad(p.variantes, 0);
-        if (!coincidenciaCualquiera) coincidenciaCualquiera = { prod: p, varIdx: elegida.idx };
-        if (!coincidenciaDisponible && obtenerStockTotalProducto(p) > 0) {
-          coincidenciaDisponible = { prod: p, varIdx: elegida.idx };
-        }
+      if (!elegidaFinal) {
+        setMensajeEscaneo({ tipo: 'err', texto: `No se encontró ninguna joya con el código "${codigoRaw ?? codigoEscaneo}".` });
+        setCodigoEscaneo('');
+        inputEscaneoRef.current?.focus();
+        return;
       }
-    }
 
-    const elegidaFinal = coincidenciaDisponible || coincidenciaCualquiera;
+      const { variantes: vars, idx: varIdxFinal } = elegirVarianteConPrioridad(elegidaFinal.prod.variantes, elegidaFinal.varIdx);
+      setProductoEscaneadoId(elegidaFinal.prod.id);
+      setVarianteEscaneadaIdx(varIdxFinal);
 
-    if (!elegidaFinal) {
-      setMensajeEscaneo({ tipo: 'err', texto: `No se encontró ninguna joya con el código "${codigoRaw ?? codigoEscaneo}".` });
+      const pendienteExistente = pendienteGuardar.find(
+        (r) => r.productoId === elegidaFinal.prod.id && r.varianteIdx === varIdxFinal
+      );
+      const stockRef = pendienteExistente
+        ? Number(pendienteExistente.stockPendiente || 0)
+        : Number(vars[varIdxFinal]?.stock || 0);
+      const estadoRef: 'Disponible' | 'Sin Inventario' = stockRef > 0 ? 'Disponible' : 'Sin Inventario';
+
+      registrarEnPendienteYSesion(elegidaFinal.prod.id, varIdxFinal, stockRef, estadoRef);
+      setMensajeEscaneo({
+        tipo: 'ok',
+        texto: `Añadida a Escaneado Pendiente de Guardar y Sesión: ${elegidaFinal.prod.nombre || 'Sin nombre'} (${vars[varIdxFinal]?.medida || 'Estándar'}) — Stock: ${stockRef}`
+      });
       setCodigoEscaneo('');
       inputEscaneoRef.current?.focus();
-      return;
+    } catch (err: any) {
+      setMensajeEscaneo({
+        tipo: 'err',
+        texto: `Error al procesar la pieza "${codigoRaw ?? codigoEscaneo}" (${err?.message || 'revisa sus datos'}). Tu lote pendiente está intacto.`
+      });
+      setCodigoEscaneo('');
+      inputEscaneoRef.current?.focus();
     }
-
-    const { variantes: vars, idx: varIdxFinal } = elegirVarianteConPrioridad(elegidaFinal.prod.variantes, elegidaFinal.varIdx);
-    setProductoEscaneadoId(elegidaFinal.prod.id);
-    setVarianteEscaneadaIdx(varIdxFinal);
-
-    const pendienteExistente = escaneadasSinGuardar.find(
-      (r) => r.productoId === elegidaFinal.prod.id && r.varianteIdx === varIdxFinal
-    );
-    const stockRef = pendienteExistente
-      ? Number(pendienteExistente.stockPendiente || 0)
-      : Number(vars[varIdxFinal]?.stock || 0);
-    const estadoRef: 'Disponible' | 'Sin Inventario' = stockRef > 0 ? 'Disponible' : 'Sin Inventario';
-
-    agregarOActualizarEnSeccionSinGuardar(elegidaFinal.prod.id, varIdxFinal, stockRef, estadoRef);
-    setMensajeEscaneo({
-      tipo: 'ok',
-      texto: `Agregada a Piezas Escaneadas (sin guardar): ${elegidaFinal.prod.nombre} (${vars[varIdxFinal]?.medida || 'Estándar'}) — Stock: ${stockRef}`
-    });
-    setCodigoEscaneo('');
-    inputEscaneoRef.current?.focus();
   };
 
   const obtenerStockPendienteActual = (prodId: number, varIdx: number, prod: any) => {
-    const pendiente = escaneadasSinGuardar.find(
+    const pendiente = pendienteGuardar.find(
       (r) => r.productoId === prodId && r.varianteIdx === varIdx
     );
     if (pendiente) return Number(pendiente.stockPendiente || 0);
@@ -712,10 +779,10 @@ function AdminDashboard() {
     const nuevaCant = valorDirecto !== undefined ? Math.max(0, Math.floor(valorDirecto)) : Math.max(0, actual + delta);
     const estadoMarca: 'Disponible' | 'Sin Inventario' = nuevaCant > 0 ? 'Disponible' : 'Sin Inventario';
 
-    agregarOActualizarEnSeccionSinGuardar(prod.id, varianteEscaneadaIdx, nuevaCant, estadoMarca);
+    registrarEnPendienteYSesion(prod.id, varianteEscaneadaIdx, nuevaCant, estadoMarca);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Pendiente de guardar: ${prod.nombre} (${vars[varianteEscaneadaIdx]?.medida || 'Estándar'}) → ${nuevaCant} pzas.`
+      texto: `Pendiente de guardar actualizado: ${prod.nombre} (${vars[varianteEscaneadaIdx]?.medida || 'Estándar'}) → ${nuevaCant} pzas.`
     });
     inputEscaneoRef.current?.focus();
   };
@@ -726,51 +793,52 @@ function AdminDashboard() {
     const stockActual = obtenerStockPendienteActual(prod.id, varianteEscaneadaIdx, prod);
     const nuevaCant = nuevoEstado === 'Sin Inventario' ? 0 : (stockActual > 0 ? stockActual : 1);
 
-    agregarOActualizarEnSeccionSinGuardar(prod.id, varianteEscaneadaIdx, nuevaCant, nuevoEstado);
+    registrarEnPendienteYSesion(prod.id, varianteEscaneadaIdx, nuevaCant, nuevoEstado);
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Pendiente de guardar como ${nuevoEstado} (${nuevaCant} pzas) — ${prod.nombre}.`
+      texto: `Marcado como ${nuevoEstado} (${nuevaCant} pzas) en Pendiente de Guardar — ${prod.nombre}.`
     });
     inputEscaneoRef.current?.focus();
   };
 
-  const marcarVarianteNoEscaneadaSinInventario = (prodId: number, varIdx: number) => {
+  const marcarVarianteSinEscanearSinInventario = (prodId: number, varIdx: number) => {
     const prod = productos.find((p: any) => p.id === prodId);
     if (!prod) return;
     const vars = Array.isArray(prod.variantes) && prod.variantes.length > 0
       ? prod.variantes
       : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
-    agregarOActualizarEnSeccionSinGuardar(prodId, varIdx, 0, 'Sin Inventario');
+    registrarEnPendienteYSesion(prodId, varIdx, 0, 'Sin Inventario');
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Marcada Sin Inventario (pendiente de guardar): ${prod.nombre} (${vars[varIdx]?.medida || 'Estándar'}).`
+      texto: `Marcada Sin Inventario en Pendiente de Guardar: ${prod.nombre} (${vars[varIdx]?.medida || 'Estándar'}).`
     });
   };
 
-  const piezasNoEscaneadas = (() => {
-    const texto = filtroNoEscaneadas.toLowerCase().trim();
+  const piezasSinEscanear = (() => {
+    const texto = filtroSinEscanear.toLowerCase().trim();
     const filas: { prod: any; varIdx: number; variante: any }[] = [];
 
     productos.forEach((p: any) => {
-      if (categoriaNoEscaneadas !== 'Todas' && p.categoria !== categoriaNoEscaneadas) return;
+      if (!p) return;
+      if (categoriaSinEscanear !== 'Todas' && p.categoria !== categoriaSinEscanear) return;
       const vars = Array.isArray(p.variantes) && p.variantes.length > 0
         ? p.variantes
         : [{ medida: 'Estándar', peso: 0, stock: 0, sku: '', barcode: '' }];
 
       vars.forEach((v: any, vIdx: number) => {
-        if (Number(v.stock || 0) <= 0) return;
-        const yaEnLoteSinGuardar = escaneadasSinGuardar.some(
+        if (!v || Number(v.stock || 0) <= 0) return;
+        const yaEnPendiente = pendienteGuardar.some(
           (reg) => reg.productoId === p.id && reg.varianteIdx === vIdx
         );
-        if (yaEnLoteSinGuardar) return;
+        if (yaEnPendiente) return;
 
         const coincideTexto = !texto ||
-          (p.nombre && p.nombre.toLowerCase().includes(texto)) ||
-          (p.sku && p.sku.toLowerCase().includes(texto)) ||
-          (p.barcode && p.barcode.toLowerCase().includes(texto)) ||
-          (v.sku && v.sku.toLowerCase().includes(texto)) ||
-          (v.barcode && v.barcode.toLowerCase().includes(texto)) ||
-          (v.medida && v.medida.toLowerCase().includes(texto));
+          (p.nombre && String(p.nombre).toLowerCase().includes(texto)) ||
+          (p.sku && String(p.sku).toLowerCase().includes(texto)) ||
+          (p.barcode && String(p.barcode).toLowerCase().includes(texto)) ||
+          (v.sku && String(v.sku).toLowerCase().includes(texto)) ||
+          (v.barcode && String(v.barcode).toLowerCase().includes(texto)) ||
+          (v.medida && String(v.medida).toLowerCase().includes(texto));
 
         if (coincideTexto) {
           filas.push({ prod: p, varIdx: vIdx, variante: v });
@@ -781,17 +849,17 @@ function AdminDashboard() {
     return filas;
   })();
 
-  const marcarTodasNoEscaneadasSinInventario = () => {
-    if (piezasNoEscaneadas.length === 0) return;
-    if (!confirm(`¿Pasar ${piezasNoEscaneadas.length} pieza(s)/variante(s) no escaneadas a Sin Inventario (stock 0) en el lote pendiente de guardar?`)) return;
+  const marcarTodasSinEscanearSinInventario = () => {
+    if (piezasSinEscanear.length === 0) return;
+    if (!confirm(`¿Marcar ${piezasSinEscanear.length} pieza(s)/variante(s) sin escanear como Sin Inventario (stock 0) en Pendiente de Guardar?`)) return;
 
-    piezasNoEscaneadas.forEach(({ prod, varIdx }) => {
-      agregarOActualizarEnSeccionSinGuardar(prod.id, varIdx, 0, 'Sin Inventario');
+    piezasSinEscanear.forEach(({ prod, varIdx }) => {
+      registrarEnPendienteYSesion(prod.id, varIdx, 0, 'Sin Inventario');
     });
 
     setMensajeEscaneo({
       tipo: 'ok',
-      texto: `Se pasaron ${piezasNoEscaneadas.length} pieza(s) a Sin Inventario (pendientes de guardar).`
+      texto: `Se pasaron ${piezasSinEscanear.length} pieza(s) a Sin Inventario en Pendiente de Guardar.`
     });
   };
 
@@ -2310,7 +2378,7 @@ function AdminDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-xl font-bold font-serif text-amber-400">Verificación de Inventario por Escaneo</h2>
-                <p className="text-slate-400">Escanea piezas para reunirlas en Piezas Escaneadas (sin guardar) y marca sin inventario lo que no escaneaste.</p>
+                <p className="text-slate-400">Revisa lo pendiente de guardar (protegido ante recargas), lo escaneado en esta sesión y las piezas sin escanear.</p>
               </div>
               <div className="flex items-center gap-2">
                 {guardandoVerificacion && (
@@ -2318,13 +2386,17 @@ function AdminDashboard() {
                     Guardando en Supabase...
                   </span>
                 )}
-                {escaneadasSinGuardar.length > 0 && (
+                {pendienteGuardar.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setEscaneadasSinGuardar([])}
+                    onClick={() => {
+                      if (!confirm('¿Vaciar la lista de Escaneado Pendiente de Guardar?')) return;
+                      setPendienteGuardar([]);
+                      localStorage.removeItem('ag47_verificacion_pendiente_guardar');
+                    }}
                     className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg font-bold text-[11px]"
                   >
-                    Descartar lote ({escaneadasSinGuardar.length})
+                    Limpiar pendientes ({pendienteGuardar.length})
                   </button>
                 )}
               </div>
@@ -2489,42 +2561,42 @@ function AdminDashboard() {
               </div>
             )}
 
-            {/* SECCIÓN APARTADA: PIEZAS ESCANEADAS (SIN GUARDAR) */}
-            <div className="bg-slate-900 border-2 border-amber-500/50 rounded-xl overflow-hidden shadow-lg">
-              <div className="p-4 border-b border-slate-800 bg-amber-500/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            {/* 1. ESCANEADO PENDIENTE DE GUARDAR (RESPALDADO EN LOCALSTORAGE) */}
+            <div className="bg-slate-900 border-2 border-amber-500/60 rounded-xl overflow-hidden shadow-lg">
+              <div className="p-4 border-b border-slate-800 bg-amber-500/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div>
                   <h3 className="font-bold uppercase text-amber-400 text-xs">
-                    📥 Piezas Escaneadas — Sin Guardar ({escaneadasSinGuardar.length})
+                    💾 Escaneado Pendiente de Guardar ({pendienteGuardar.length})
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Aquí quedan las piezas escaneadas o marcadas en este turno hasta que pulses Guardar en Supabase.
+                  <p className="text-[11px] text-slate-300">
+                    Se respalda automáticamente en el navegador: si recargas por algún error, no pierdes estas piezas hasta guardar en Supabase.
                   </p>
                 </div>
 
-                {escaneadasSinGuardar.length > 0 && (
+                {pendienteGuardar.length > 0 && (
                   <button
                     type="button"
                     disabled={guardandoVerificacion}
-                    onClick={guardarPiezasEscaneadasEnSupabase}
+                    onClick={guardarPendientesEnSupabase}
                     className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black px-4 py-2.5 rounded-lg text-xs uppercase tracking-wider shadow transition"
                   >
-                    {guardandoVerificacion ? 'Guardando...' : `💾 Guardar Piezas Escaneadas (${escaneadasSinGuardar.length})`}
+                    {guardandoVerificacion ? 'Guardando...' : `💾 Guardar Pendientes en Supabase (${pendienteGuardar.length})`}
                   </button>
                 )}
               </div>
 
-              {escaneadasSinGuardar.length === 0 ? (
+              {pendienteGuardar.length === 0 ? (
                 <p className="p-6 text-center text-slate-500">
-                  Aún no hay piezas escaneadas pendientes de guardar en esta sección.
+                  No hay piezas pendientes de guardar.
                 </p>
               ) : (
                 <div className="divide-y divide-slate-800 max-h-80 overflow-y-auto">
-                  {escaneadasSinGuardar.map((reg, i) => {
+                  {pendienteGuardar.map((reg, i) => {
                     const prodRef = productos.find((p: any) => p.id === reg.productoId);
                     const varRef = prodRef?.variantes?.[reg.varianteIdx];
                     return (
                       <div
-                        key={`${reg.productoId}_${reg.varianteIdx}_${i}`}
+                        key={`pend_${reg.productoId}_${reg.varianteIdx}_${i}`}
                         className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/50 transition"
                       >
                         <div
@@ -2541,7 +2613,7 @@ function AdminDashboard() {
                           />
                           <div>
                             <p className="font-bold text-white text-sm">
-                              {prodRef?.nombre || 'Producto'} {varRef?.medida ? `(${varRef.medida})` : ''}
+                              {prodRef?.nombre || `Producto #${reg.productoId}`} {varRef?.medida ? `(${varRef.medida})` : ''}
                             </p>
                             <p className="text-[10px] font-mono text-slate-400">
                               SKU: {varRef?.sku || prodRef?.sku || 'N/A'} • {reg.hora}
@@ -2560,7 +2632,7 @@ function AdminDashboard() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => quitarDeSeccionSinGuardar(reg.productoId, reg.varianteIdx)}
+                            onClick={() => quitarDePendienteGuardar(reg.productoId, reg.varianteIdx)}
                             className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-[10px] font-bold"
                           >
                             Quitar
@@ -2573,25 +2645,25 @@ function AdminDashboard() {
               )}
             </div>
 
-            {/* LISTADO APARTE: PIEZAS NO ESCANEADAS */}
+            {/* 2. PIEZAS SIN ESCANEAR */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
               <div className="p-4 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                 <div>
                   <h3 className="font-bold uppercase text-amber-400 text-[11px]">
-                    ⏳ Piezas No Escaneadas ({piezasNoEscaneadas.length})
+                    ⏳ Piezas Sin Escanear ({piezasSinEscanear.length})
                   </h3>
                   <p className="text-[11px] text-slate-400">
-                    Piezas y variantes con stock que aún no has escaneado; márcalas sin inventario para pasarlas al lote pendiente de guardar.
+                    Piezas con stock que aún no están en Escaneado Pendiente de Guardar; márcalas sin inventario para pasarlas al lote pendiente.
                   </p>
                 </div>
 
-                {piezasNoEscaneadas.length > 0 && (
+                {piezasSinEscanear.length > 0 && (
                   <button
                     type="button"
-                    onClick={marcarTodasNoEscaneadasSinInventario}
+                    onClick={marcarTodasSinEscanearSinInventario}
                     className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-lg text-[11px] transition shadow"
                   >
-                    ✕ Marcar todas las visibles sin inventario ({piezasNoEscaneadas.length})
+                    ✕ Marcar todas las visibles sin inventario ({piezasSinEscanear.length})
                   </button>
                 )}
               </div>
@@ -2599,14 +2671,14 @@ function AdminDashboard() {
               <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
-                  value={filtroNoEscaneadas}
-                  onChange={(e) => setFiltroNoEscaneadas(e.target.value)}
-                  placeholder="Filtrar no escaneadas por nombre, SKU, barcode o talla..."
+                  value={filtroSinEscanear}
+                  onChange={(e) => setFiltroSinEscanear(e.target.value)}
+                  placeholder="Filtrar sin escanear por nombre, SKU, barcode o talla..."
                   className="flex-1 p-2 bg-slate-900 border border-slate-800 rounded-lg text-white font-mono text-xs focus:outline-none focus:border-amber-500"
                 />
                 <select
-                  value={categoriaNoEscaneadas}
-                  onChange={(e) => setCategoriaNoEscaneadas(e.target.value)}
+                  value={categoriaSinEscanear}
+                  onChange={(e) => setCategoriaSinEscanear(e.target.value)}
                   className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs"
                 >
                   <option value="Todas">Todas las categorías</option>
@@ -2616,15 +2688,15 @@ function AdminDashboard() {
                 </select>
               </div>
 
-              {piezasNoEscaneadas.length === 0 ? (
+              {piezasSinEscanear.length === 0 ? (
                 <p className="p-6 text-center text-slate-500">
-                  No hay piezas pendientes con stock por escanear bajo este filtro.
+                  No hay piezas con stock sin escanear bajo este filtro.
                 </p>
               ) : (
-                <div className="divide-y divide-slate-800 max-h-96 overflow-y-auto">
-                  {piezasNoEscaneadas.map(({ prod, varIdx, variante }) => (
+                <div className="divide-y divide-slate-800 max-h-80 overflow-y-auto">
+                  {piezasSinEscanear.map(({ prod, varIdx, variante }) => (
                     <div
-                      key={`${prod.id}_${varIdx}`}
+                      key={`sinesc_${prod.id}_${varIdx}`}
                       className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition"
                     >
                       <div className="flex items-center space-x-3">
@@ -2650,7 +2722,7 @@ function AdminDashboard() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => marcarVarianteNoEscaneadaSinInventario(prod.id, varIdx)}
+                          onClick={() => marcarVarianteSinEscanearSinInventario(prod.id, varIdx)}
                           className="bg-rose-600/25 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold px-3 py-1.5 rounded-lg text-[11px] transition"
                         >
                           Marcar sin inventario
@@ -2658,6 +2730,70 @@ function AdminDashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. ESCANEADO EN ESTA SESIÓN */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold uppercase text-amber-400 text-[11px]">
+                    🕒 Escaneado en Esta Sesión ({escaneadoEstaSesion.length})
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Registro de piezas escaneadas o tocadas durante esta sesión activa.
+                  </p>
+                </div>
+              </div>
+
+              {escaneadoEstaSesion.length === 0 ? (
+                <p className="p-6 text-center text-slate-500">
+                  Aún no has escaneado piezas en esta sesión.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-800 max-h-72 overflow-y-auto">
+                  {escaneadoEstaSesion.map((reg, i) => {
+                    const prodRef = productos.find((p: any) => p.id === reg.productoId);
+                    const varRef = prodRef?.variantes?.[reg.varianteIdx];
+                    return (
+                      <div
+                        key={`ses_${reg.productoId}_${reg.varianteIdx}_${i}`}
+                        onClick={() => {
+                          setProductoEscaneadoId(reg.productoId);
+                          setVarianteEscaneadaIdx(reg.varianteIdx);
+                        }}
+                        className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 cursor-pointer transition"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <img
+                            src={prodRef?.fotos?.[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800'}
+                            alt=""
+                            className="w-10 h-10 object-cover rounded border border-slate-700 shrink-0"
+                          />
+                          <div>
+                            <p className="font-bold text-white text-sm">
+                              {prodRef?.nombre || `Producto #${reg.productoId}`} {varRef?.medida ? `(${varRef.medida})` : ''}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-400">
+                              SKU: {varRef?.sku || prodRef?.sku || 'N/A'} • {reg.hora}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-mono font-bold text-amber-400">Stock: {reg.stockPendiente}</span>
+                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                            reg.estadoPendiente === 'Disponible'
+                              ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                              : 'bg-rose-600/20 text-rose-300 border-rose-500/40'
+                          }`}>
+                            {reg.estadoPendiente}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
